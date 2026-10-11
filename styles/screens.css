@@ -239,6 +239,35 @@ html.kb-open .actionbar{display:none}
 .shake{animation:shake .38s ease}
 @keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
 
+/* ===== Transición de marca al iniciar sesión (ui/components/brandIntro.js) =====
+   Entrada: el logotipo se revela en diagonal (máscara que sigue el trazo naranja), luego el nombre, la banda corrugada y
+   «Bienvenido». Salida: el fondo se desvanece sobre el panel y el logotipo viaja a su lugar en el encabezado. */
+.brand-intro{position:fixed;inset:0;z-index:var(--z-intro);display:grid;place-items:center;overflow:hidden}
+.bi-bg{position:absolute;inset:0;background:var(--canvas);transition:opacity .44s ease .06s}
+.bi-in{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px;text-align:center}
+.bi-logo{width:96px;height:96px;transform-origin:0 0;transition:transform .52s var(--ease),opacity .4s ease}
+.bi-mark{display:block;width:100%;height:100%;object-fit:contain;animation:biMark .62s var(--ease) both;
+  -webkit-mask-image:linear-gradient(135deg,#000 45%,transparent 55%);mask-image:linear-gradient(135deg,#000 45%,transparent 55%);
+  -webkit-mask-size:300% 300%;mask-size:300% 300%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:0 0;mask-position:0 0}
+.bi-word{font-size:36px;animation:biWord .5s var(--ease) .24s both}
+.bi-band{width:168px;transform-origin:left center;animation:biBand .46s var(--ease) .5s both}
+.bi-msg{margin:4px 0 0;font-size:var(--fs-subhead);color:var(--ink-2);animation:biFade .4s ease .78s both}
+@keyframes biMark{from{opacity:0;transform:translate(-8px,8px) scale(.94);-webkit-mask-position:100% 100%;mask-position:100% 100%}30%{opacity:1}to{opacity:1;transform:none;-webkit-mask-position:0 0;mask-position:0 0}}
+@keyframes biWord{from{opacity:0;transform:translateY(8px);letter-spacing:.16em}to{opacity:1;transform:none;letter-spacing:.02em}}
+@keyframes biBand{from{transform:scaleX(0)}to{transform:none}}
+@keyframes biFade{from{opacity:0}to{opacity:1}}
+@media (min-width:700px){.bi-logo{width:120px;height:120px}.bi-word{font-size:42px}.bi-band{width:200px}}
+.brand-intro.bi-out{pointer-events:none}
+.brand-intro.bi-out .bi-bg{opacity:0}
+.brand-intro.bi-out .bi-word,.brand-intro.bi-out .bi-band,.brand-intro.bi-out .bi-msg{opacity:0;transition:opacity .18s ease;animation:none}
+.bi-logo.fade{opacity:0;transform:scale(.92)}
+.bi-hidden{visibility:hidden}
+/* Reducir movimiento: sin revelado ni desplazamientos; la marca aparece quieta y solo se desvanece */
+.bi-still .bi-mark,.bi-still .bi-word,.bi-still .bi-band,.bi-still .bi-msg{animation:none;-webkit-mask-image:none;mask-image:none}
+.bi-still .bi-in{transition:opacity .24s ease}
+.bi-still.bi-out .bi-in{opacity:0}
+@media (prefers-reduced-motion:reduce){.brand-intro .bi-bg,.brand-intro .bi-in,.brand-intro .bi-logo{transition-duration:.24s!important;transition-delay:0s!important}}
+
 /* ===== Información compartida (Ajustes → Información compartida) ===== */
 .sync-role{display:flex;align-items:center;gap:8px;margin:0 0 8px}
 .sync-ro{font-size:var(--fs-caption);font-weight:600;color:var(--ink-2)}

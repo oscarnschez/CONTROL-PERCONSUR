@@ -1,4 +1,4 @@
-"""Pruebas de acceso. Requiere las credenciales en variables de entorno:
+"""Pruebas de acceso y de la transición de marca al entrar. Requiere las credenciales en variables de entorno:
    PCS_TEST_USER=... PCS_TEST_PASS=... python3 auth.py"""
 import subprocess, time, sys, os
 from playwright.sync_api import sync_playwright
@@ -12,8 +12,8 @@ ok=lambda c,m: log.append(('OK  ' if c else 'FAIL')+' '+m)
 try:
   with sync_playwright() as p:
     b=p.chromium.launch()
-    def ctxpage():
-        ctx=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block')
+    def ctxpage(**k):
+        ctx=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block',**k)
         ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
         pg=ctx.new_page(); pg.on('pageerror',lambda e:errs.append(str(e))); return ctx,pg
     ctx,pg=ctxpage()
@@ -23,34 +23,52 @@ try:
     ok(not any(x in loaded for x in ['main.js','services/db.js','ui/screens/home.js']),'los módulos de la app y los datos no se cargan antes del acceso: '+', '.join(sorted(loaded)))
     ok(pg.locator('#lg-pass').get_attribute('type')=='password','la contraseña se escribe oculta')
     pg.screenshot(path='shots/a1_acceso.png')
-    pg.fill('#lg-user',U); pg.fill('#lg-pass',P[:-1]); t=time.time(); pg.click('#lg-go'); pg.wait_for_function("document.querySelector('#lg-msg').textContent.length>0"); dt=time.time()-t
+    pg.fill('#lg-user',U); pg.fill('#lg-pass',P[:-1]); t=time.time(); pg.click('#lg-go'); pg.wait_for_selector('#lg-msg:not(:empty)'); dt=time.time()-t
     ok('incorrectos' in pg.locator('#lg-msg').inner_text() and pg.locator('#lg-pass').input_value()=='','contraseña incorrecta: mensaje genérico y campo vaciado (%.2f s de verificación)'%dt)
     pg.screenshot(path='shots/a2_error.png')
     pg.fill('#lg-pass',P); pg.locator('#lg-peek').dispatch_event('pointerdown')
     ok(pg.locator('#lg-pass').get_attribute('type')=='text','mantener presionado muestra la contraseña')
     pg.locator('#lg-peek').dispatch_event('pointerup')
     ok(pg.locator('#lg-pass').get_attribute('type')=='password','al soltar se vuelve a ocultar')
-    pg.fill('#lg-user','  '+U.upper()+' '); pg.click('#lg-go'); pg.wait_for_selector('.home',timeout=10000); pg.wait_for_timeout(900)
-    ok(pg.locator('.login').count()==0 and pg.locator('.tabbar').count()==1,'usuario sin distinguir mayúsculas/espacios + contraseña correcta → entra a la app')
+    ok(pg.locator('.brand-intro').count()==0,'con contraseña incorrecta no aparece la transición de marca')
+    pg.fill('#lg-user','  '+U.upper()+' '); pg.click('#lg-go'); pg.wait_for_selector('.brand-intro',timeout=10000)
+    ok(pg.locator('.brand-intro .bi-mark').evaluate('i=>i.complete&&i.naturalWidth>0') and pg.locator('.brand-intro .bi-word').inner_text()=='PERCONSUR' and pg.locator('.brand-intro .bi-msg').inner_text()=='Bienvenido','transición de marca al entrar: logotipo de PERCONSUR cargado, nombre y «Bienvenido»')
+    ok(pg.locator('.brand-intro .bi-mark').evaluate("e=>getComputedStyle(e).animationName")=='biMark','el logotipo se revela con animación (sin «reducir movimiento»)')
+    pg.wait_for_timeout(650); pg.screenshot(path='shots/a3_transicion.png')
+    pg.wait_for_selector('.brand-intro',state='detached',timeout=10000); pg.wait_for_selector('.home',timeout=10000)
+    dur=pg.evaluate("performance.getEntriesByName('pcs-intro-end')[0].startTime-performance.getEntriesByName('pcs-intro-start')[0].startTime")
+    ok(1200<=dur<=2400,'la transición termina sola y dura entre 1.2 y 2.4 s: %.2f s'%(dur/1000))
+    ok(pg.locator('.login').count()==0 and pg.locator('.tabbar').count()==1 and pg.locator('.bi-hidden').count()==0 and pg.locator('.home-top .brand-mark').evaluate("e=>getComputedStyle(e).visibility")=='visible','usuario sin distinguir mayúsculas/espacios + contraseña correcta → entra a la app con el logotipo de Inicio a la vista')
     pg.screenshot(path='shots/a3_dentro.png')
     ok(pg.evaluate("localStorage.getItem('pcs-auth-guard')")=='{"n":0,"until":0}','el contador de intentos se reinicia al entrar')
     pg.reload(); pg.wait_for_timeout(1500)
-    ok(pg.locator('.login').count()==0 and pg.locator('.home').count()==1,'recargar mantiene la sesión')
+    ok(pg.locator('.login').count()==0 and pg.locator('.home').count()==1 and pg.locator('.brand-intro').count()==0 and pg.evaluate("performance.getEntriesByName('pcs-intro-start').length")==0,'recargar mantiene la sesión y no repite la transición de marca')
     stor=pg.evaluate("JSON.stringify({...localStorage})+JSON.stringify({...sessionStorage})")
     ok(P not in stor and P[:6] not in stor,'la contraseña no queda en localStorage ni sessionStorage')
-    pg.goto('http://127.0.0.1:8768/index.html#/ajustes'); pg.wait_for_timeout(900); pg.locator('[data-a="logout"]').scroll_into_view_if_needed(); pg.screenshot(path='shots/a4_ajustes_sesion.png')
+    pg.goto('http://127.0.0.1:8768/index.html#/ajustes'); pg.wait_for_timeout(900)
+    ok(pg.locator('.brand-intro').count()==0 and pg.evaluate("performance.getEntriesByName('pcs-intro-start').length")==0,'navegar dentro de la app no muestra la transición')
+    pg.locator('[data-a="logout"]').scroll_into_view_if_needed(); pg.screenshot(path='shots/a4_ajustes_sesion.png')
     pg.click('[data-a="logout"]'); pg.wait_for_selector('.asheet'); pg.locator('.as-btn.destructive').click(); pg.wait_for_selector('.login',timeout=8000)
     ok(pg.locator('.tabbar').count()==0,'cerrar sesión vuelve a pedir el acceso')
     ctx.close()
     # bloqueo por intentos (contexto nuevo)
     ctx,pg=ctxpage(); pg.goto('http://127.0.0.1:8768/index.html'); pg.wait_for_selector('.login')
     for i in range(5):
-        pg.fill('#lg-user','alguien'); pg.fill('#lg-pass','incorrecta%d'%i); pg.click('#lg-go'); pg.wait_for_function("!document.querySelector('#lg-go').textContent.includes('Verificando')")
+        pg.fill('#lg-user','alguien'); pg.fill('#lg-pass','incorrecta%d'%i); pg.click('#lg-go'); pg.wait_for_selector('#lg-go:not(:has-text("Verificando"))')
     ok('Espera' in pg.locator('#lg-msg').inner_text() and pg.locator('#lg-go').is_disabled(),'5 intentos fallidos → bloqueo temporal: '+pg.locator('#lg-msg').inner_text())
     pg.screenshot(path='shots/a5_bloqueo.png')
     pg.reload(); pg.wait_for_selector('.login'); pg.wait_for_timeout(300)
     ok(pg.locator('#lg-go').is_disabled(),'el bloqueo se mantiene aunque se recargue')
     pg.emulate_media(color_scheme='dark'); pg.evaluate("localStorage.removeItem('pcs-auth-guard')"); pg.reload(); pg.wait_for_selector('.login'); pg.wait_for_timeout(400); pg.screenshot(path='shots/a6_oscuro.png')
+    ctx.close()
+    # modo oscuro + «reducir movimiento»: la marca aparece quieta y solo se desvanece
+    ctx,pg=ctxpage(color_scheme='dark',reduced_motion='reduce'); pg.goto('http://127.0.0.1:8768/index.html'); pg.wait_for_selector('.login')
+    pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.brand-intro',timeout=10000)
+    ok(pg.locator('.brand-intro.bi-still').count()==1 and pg.locator('.brand-intro .bi-mark').evaluate("e=>getComputedStyle(e).animationName")=='none','con «reducir movimiento» la marca aparece quieta (sin revelado ni desplazamientos)')
+    pg.wait_for_timeout(250); pg.screenshot(path='shots/a7_transicion_oscuro.png')
+    pg.wait_for_selector('.brand-intro',state='detached',timeout=10000); pg.wait_for_selector('.home',timeout=10000)
+    dur=pg.evaluate("performance.getEntriesByName('pcs-intro-end')[0].startTime-performance.getEntriesByName('pcs-intro-start')[0].startTime")
+    ok(dur<=1500 and pg.locator('.login').count()==0,'…solo se desvanece, termina antes (%.2f s) y entra a la app'%(dur/1000))
     ctx.close(); b.close()
 finally: srv.terminate()
 print('\n'.join(log)); print('errores:', '; '.join(errs) or 'ninguno')

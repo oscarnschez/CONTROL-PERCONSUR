@@ -10,6 +10,7 @@
  *   - Bloqueo progresivo tras 5 intentos fallidos (30 s, 1 min, 2 min… hasta 15 min), aunque se recargue.
  *   - La contraseña nunca se guarda: el campo se vacía al verificar y no se registra en consola.
  * Sesión: dura mientras la app sigue abierta (sessionStorage) y como máximo 12 horas.
+ * Tras verificar el acceso se muestra la transición de marca (ui/components/brandIntro.js) mientras la app arranca.
  *
  * Límite honesto: sin servidor, quien tenga acceso técnico al dispositivo podría evitar esta pantalla.
  * Para proteger los datos ante eso se requiere cifrado local o inicio de sesión en servidor.
@@ -18,6 +19,7 @@ import { AUTH } from '../config/auth.js';
 import { icon } from '../ui/components/icons.js';
 import { APP_VERSION, APP_BUILD } from '../config/reference.js';
 import { copyrightText } from '../config/legal.js';
+import { startBrandIntro } from '../ui/components/brandIntro.js';
 
 const SESSION_KEY = 'pcs-session';
 const GUARD_KEY = 'pcs-auth-guard';
@@ -89,6 +91,12 @@ function hideSplash() {
 function launchApp() {
   return import('../main.js');
 }
+/* La app ya mostró su primera pantalla (o no pudo arrancar y mostró el aviso): la transición de marca puede terminar */
+function appShown(mod) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const shown = new Promise((res) => window.addEventListener('routechange', res, { once: true }));
+  return Promise.race([shown, Promise.resolve(mod.ready).then(() => wait(600)), wait(8000)]);
+}
 
 function showLogin() {
   const root = document.createElement('section');
@@ -157,10 +165,22 @@ function showLogin() {
     if (ok) {
       saveGuard({ n: 0, until: 0 });
       startSession(ok);
+      /* Transición de marca: cubre el acceso mientras la app arranca y se retira cuando el panel ya está en pantalla */
+      const intro = startBrandIntro();
       root.classList.add('out');
       document.activeElement && document.activeElement.blur();
-      await launchApp();
-      setTimeout(() => root.remove(), 260);
+      let mod = null;
+      try { mod = await launchApp(); } catch (err) { console.error(err); }
+      if (!mod) {
+        intro.abort();
+        sessionStorage.removeItem(SESSION_KEY);
+        root.classList.remove('out');
+        busy = false; go.disabled = false; go.querySelector('span').textContent = 'Entrar';
+        msg.className = 'login-msg warn'; msg.textContent = 'No se pudo abrir la aplicación. Revisa tu conexión e intenta de nuevo.';
+        return;
+      }
+      await intro.end(appShown(mod));
+      root.remove();
       return;
     }
     busy = false; go.disabled = false; go.querySelector('span').textContent = 'Entrar';

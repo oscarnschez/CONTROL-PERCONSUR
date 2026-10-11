@@ -210,9 +210,12 @@ async function boot() {
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
     else if (updated) toast(`PERCONSUR se actualizó a la versión ${APP_VERSION}`, { type: 'info', ms: 5000 });
     tryLibs(['qrcode']);
-    /* Si se viene de la pantalla de acceso ya no hay splash */
+    /* Si se viene de la pantalla de acceso ya no hay splash: está la transición de marca, y el aviso de borrador
+       pendiente espera a que termine */
+    const intro = document.querySelector('.brand-intro');
+    const afterIntro = () => (intro && intro.isConnected ? new Promise((r) => window.addEventListener('brandintro:end', r, { once: true })) : Promise.resolve());
     const wait = splash ? Math.max(0, 550 - (performance.now() - t0)) : 0;
-    setTimeout(() => { if (splash) { splash.classList.add('out'); setTimeout(() => splash.remove(), 300); } offerRecovery(); }, wait);
+    setTimeout(() => { if (splash) { splash.classList.add('out'); setTimeout(() => splash.remove(), 300); } afterIntro().then(offerRecovery); }, wait);
   } catch (e) {
     console.error(e);
     const text = 'No se pudo abrir el almacenamiento del dispositivo. Si usas navegación privada, ábrela en una pestaña normal.';
@@ -227,4 +230,5 @@ async function boot() {
   window.addEventListener('online', () => toast('Conexión restablecida', { type: 'info' }));
   window.addEventListener('offline', () => toast('Sin conexión. Puedes seguir trabajando.', { type: 'info', ms: 3500 }));
 }
-boot();
+/* auth/gate.js espera esta promesa para retirar la transición de marca aunque el arranque falle */
+export const ready = boot();

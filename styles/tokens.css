@@ -36,7 +36,7 @@
   --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
   --tab-h:56px; --bar-h:68px;
   /* Capas de la interfaz (de abajo hacia arriba). Los valores 0–5 dentro de un componente son locales. */
-  --z-sticky:100; --z-nav:200; --z-sheet:300; --z-busy:1000; --z-toast:1500; --z-login:1800; --z-splash:2000;
+  --z-sticky:100; --z-nav:200; --z-sheet:300; --z-busy:1000; --z-toast:1500; --z-login:1800; --z-intro:1900; --z-splash:2000;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){

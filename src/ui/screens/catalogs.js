@@ -14,6 +14,7 @@ import { hasRecords } from '../../services/operators.js';
 import { vehicleHasFuel } from '../../services/fuel.js';
 import { inOpenOperation } from '../../services/logistics.js';
 import { yardInUse } from '../../services/empties.js';
+import { inOpenLoad, terminalInUse, loadingYardInUse } from '../../services/fulls.js';
 import { equipmentHasMaintenance } from '../../services/maintenance.js';
 import { trailerIcon } from '../components/icons.js';
 import { pickPoint } from '../components/pinPicker.js';
@@ -21,7 +22,7 @@ import { placeLoc, cached as geoCached } from '../../services/geocode.js';
 import { coordsIn, precisionLabel, isApprox } from '../../domain/gps/geo.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'yards'];
+const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'yards', 'loadingYards'];
 
 export async function catalogsScreen() {
   const co = getSetting('catCompany', 'perconsur');
@@ -31,7 +32,7 @@ export async function catalogsScreen() {
     <p class="page-lead">Datos que se ofrecen al capturar. Operadores, unidades y remolques son de cada empresa; División Campo usa los de PERCONSUR.</p>
     <section class="grp"><div class="grp-b list-actions">${ORDER.map((k) => {
       const d = cat.KINDS[k], n = d.perCompany ? PUERTO_COMPANIES.reduce((t, c) => t + cat.list(k, c).length, 0) : cat.list(k).length;
-      return `<a class="row-btn" href="#/catalogos/${k}"><span class="rb-ic">${{ operators: icon.person, vehicles: icon.truck, trailers: icon.trailer, places: icon.pin, plants: icon.building, terminals: icon.container, yards: icon.yard }[k]}</span><span>${esc(d.title)}</span><small>${n}</small>${icon.chev}</a>`;
+      return `<a class="row-btn" href="#/catalogos/${k}"><span class="rb-ic">${{ operators: icon.person, vehicles: icon.truck, trailers: icon.trailer, places: icon.pin, plants: icon.building, terminals: icon.container, yards: icon.yard, loadingYards: icon.calendar }[k]}</span><span>${esc(d.title)}</span><small>${n}</small>${icon.chev}</a>`;
     }).join('')}
       <a class="row-btn" href="#/catalogos/tipos"><span class="rb-ic">${icon.catalog}</span><span>Tipos de contenedor (ISO)</span><small>${TIPOS.length}</small>${icon.chev}</a>
     </div></section>
@@ -142,6 +143,15 @@ export async function catalogListScreen({ kind }) {
       }
       if (kind === 'yards' && await yardInUse(v.id)) {
         toast('Este patio está asignado a contenedores vacíos pendientes; no se puede eliminar. Puedes marcarlo como Inactivo.', { type: 'warn', ms: 5500 });
+        return;
+      }
+      if ((kind === 'loadingYards' && await loadingYardInUse(v.id)) || (kind === 'terminals' && await terminalInUse(v.id))) {
+        toast(`Est${kind === 'terminals' ? 'a terminal' : 'e patio'} tiene cargas programadas en Control de llenos; no se puede eliminar. ${kind === 'terminals' ? 'Puedes editar sus datos.' : 'Puedes marcarlo como Inactivo.'}`, { type: 'warn', ms: 5500 });
+        return;
+      }
+      const fcField = { vehicles: 'vehicleId', operators: 'operatorId', trailers: 'trailerId' }[kind];
+      if (fcField && await inOpenLoad(fcField, v.id)) {
+        toast(`Este ${def.one} está asignado a una carga abierta de Control de llenos; quítalo de la carga antes de eliminarlo. Puedes editar sus datos.`, { type: 'warn', ms: 5500 });
         return;
       }
       if ((kind === 'vehicles' || kind === 'trailers') && await equipmentHasMaintenance(kind === 'vehicles' ? 'vehicleId' : 'trailerId', v.id)) {

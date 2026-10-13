@@ -19,6 +19,8 @@ import { loadTripAttachments } from './services/tripAttachments.js';
 import { loadEmpties } from './services/empties.js';
 import { loadGeocodes } from './services/geocode.js';
 import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
+import { fullsScreen, fullDetailScreen } from './ui/screens/fulls.js';
+import { loadFulls } from './services/fulls.js';
 import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
 import { gpsMonitorScreen } from './ui/screens/gpsMonitor.js';
 import { startTracking } from './services/tracking.js';
@@ -121,6 +123,8 @@ function routes() {
   route('/operacion/logistica/monitoreo', gpsMonitorScreen, { name: 'monitor', tabs: true, tab: 'op' });
   route('/operacion/logistica/vacios', emptiesScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/llenos', fullsScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/llenos/:id', fullDetailScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/taller', workshopScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/taller/equipo/:type/:id', workshopEquipmentScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/taller/orden/:id', workshopOrderScreen, { name: 'op', tabs: true, tab: 'op' });
@@ -179,7 +183,7 @@ async function boot() {
     /* Información compartida: un dispositivo de consulta queda en solo lectura antes de cualquier otra escritura */
     initSync();
     applyTheme();
-    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties(), loadGeocodes()]);
+    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties(), loadFulls(), loadGeocodes()]);
     /* Taller (disponibilidad «En taller» en Logística e Inicio) */
     await loadMaintenance(false, { withFuel: false });
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */

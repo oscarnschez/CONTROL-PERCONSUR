@@ -31,8 +31,9 @@ export const kindOf = (file) => {
   return null;
 };
 
-/* Convierte un archivo en lo que se guarda: PDF tal cual (con su número de páginas), imagen normalizada a JPEG */
-async function processFile(blob, name, kind) {
+/* Convierte un archivo en lo que se guarda: PDF tal cual (con su número de páginas), imagen normalizada a JPEG.
+   También lo usa Control de llenos (services/fulls.js) para sus documentos. */
+export async function processFile(blob, name, kind) {
   if (kind === 'pdf') {
     await loadLib('pdflib');
     const d = await window.PDFLib.PDFDocument.load(new Uint8Array(await blob.arrayBuffer()), { ignoreEncryption: true });

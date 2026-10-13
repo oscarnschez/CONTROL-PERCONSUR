@@ -79,6 +79,9 @@ export const icon = {
   link: I('<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'),
   linkOff: I('<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/><path d="m4 4 16 16"/>'),
   map: I('<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'),
+  /* Control de llenos: pizarra de cargas y peso */
+  calendar: I('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.8h17M8 3v4M16 3v4"/><path d="M8 13.5h.01M12 13.5h.01M16 13.5h.01M8 17h.01M12 17h.01"/>'),
+  weight: I('<path d="M12 3.5v3M5 8.5h14"/><path d="m7.5 8.5-3 6.5a3.2 3.2 0 0 0 6 0l-3-6.5zM16.5 8.5l-3 6.5a3.2 3.2 0 0 0 6 0l-3-6.5z"/><path d="M12 6.5v14M8.5 20.5h7"/>'),
 };
 
 /* Ícono según el tipo del remolque en el catálogo (chasis | jaula | tolva); sin clasificar → remolque genérico */

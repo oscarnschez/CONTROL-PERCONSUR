@@ -10,7 +10,8 @@ export const SYNC_STORES = ['companies', 'counters', 'operators', 'vehicles', 't
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements', 'fuelRecords', 'tripBilling',
   'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents', 'geocodes',
   'maintenanceOrders', 'maintenanceServices', 'maintenanceIssues', 'maintenanceComponents', 'tireReplacements', 'oilChanges',
-  'maintenanceAttachments', 'maintenanceEvents', 'maintenanceProfiles', 'maintenanceParts', 'tariffSheets'];
+  'maintenanceAttachments', 'maintenanceEvents', 'maintenanceProfiles', 'maintenanceParts', 'tariffSheets',
+  'loadingYards', 'fullContainerLoads', 'fullContainerDocuments', 'fullContainerEvents'];
 const KEY_PATH = { companies: 'key', geocodes: 'key', tripBilling: 'tripId', operatorSettings: 'operatorId' };
 export const keyPathOf = (store) => KEY_PATH[store] || 'id';
 /* En un dispositivo de consulta solo se escribe en lo que es del propio dispositivo: sus ajustes y la ubicación de

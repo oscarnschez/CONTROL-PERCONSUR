@@ -27,6 +27,8 @@ import { avatar, hydrateAvatars } from './operators.js';
 import { dossierRef } from '../../services/dossier.js';
 import { generate as generateDossier } from './tripDocs.js';
 import * as ec from '../../services/empties.js';
+import * as fc from '../../services/fulls.js';
+import { summary as fullsSummary } from '../../domain/fulls/fulls.js';
 import { notifyEmptyResult } from './empties.js';
 import * as gps from '../../services/gps.js';
 import { freshness, ageText, hasFix } from '../../domain/gps/gps.js';
@@ -82,7 +84,8 @@ export async function logisticsScreen() {
     <p class="page-lead">Estado y asignación actual de las unidades.</p>
     <button type="button" class="btn-primary block lg lg-new" data-new>${icon.plus}<span>Nueva asignación</span></button>
     <div class="lg-entries"><a class="mon-entry" href="#/operacion/logistica/monitoreo"><span class="mod-ic">${icon.map}</span><span class="mon-entry-tx"><b>Monitoreo GPS</b><small>Mapa de la flota en tiempo real y rastreo para clientes</small><span class="mon-entry-n" data-monn></span></span><span class="chev">${icon.chev}</span></a>
-    <a class="ec-entry" href="#/operacion/logistica/vacios"><span class="mod-ic">${icon.yard}</span><span class="ec-entry-tx"><b>Control de vacíos</b><small>Seguimiento y entrega de contenedores vacíos</small><span class="ec-entry-n" data-ecn></span></span><span class="chev">${icon.chev}</span></a></div>
+    <a class="ec-entry" href="#/operacion/logistica/vacios"><span class="mod-ic">${icon.yard}</span><span class="ec-entry-tx"><b>Control de vacíos</b><small>Seguimiento y entrega de contenedores vacíos</small><span class="ec-entry-n" data-ecn></span></span><span class="chev">${icon.chev}</span></a>
+    <a class="fc-entry" href="#/operacion/logistica/llenos"><span class="mod-ic">${icon.calendar}</span><span class="ec-entry-tx"><b>Control de llenos</b><small>Programación de cargas y gestión documental de contenedores</small><span class="ec-entry-n" data-fcn></span></span><span class="chev">${icon.chev}</span></a></div>
     <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" placeholder="Unidad, placas, operador, referencia, lugar…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar en Logística"></label>
     <div class="chips filters lg-stf" data-stf role="group" aria-label="Filtrar por estado"></div>
     <div class="chips filters lg-f2" role="group" aria-label="Filtrar por división y tipo de remolque">
@@ -94,9 +97,12 @@ export async function logisticsScreen() {
   </div>`);
   const root = s.el, listEl = root.querySelector('[data-list]'), stf = root.querySelector('[data-stf]');
   await ec.loadEmpties();
+  await fc.loadFulls();
   function drawEc() {
     const open = ec.openList(), late = open.filter((r) => isOverdue(r)).length;
     root.querySelector('[data-ecn]').innerHTML = `<span class="ec-pend${open.length ? ' on' : ''}">Vacíos pendientes: <b>${open.length}</b></span>${late ? `<span class="ec-late">${icon.alert}${late} vencida${late === 1 ? '' : 's'}</span>` : ''}`;
+    const fs = fullsSummary(fc.all(), fc.docsOf);
+    root.querySelector('[data-fcn]').innerHTML = `<span class="ec-pend${fs.today ? ' on' : ''}">Cargas hoy: <b>${fs.today}</b></span><span>Esta semana: <b>${fs.week}</b></span>${fs.docsPending ? `<span class="ec-late">${icon.alert}${fs.docsPending} sin documentación</span>` : ''}`;
   }
   function drawMon() {
     const n = gps.configured() ? lg.units().filter((u) => gps.imeiOf(u.id)).length : 0;
@@ -153,8 +159,8 @@ export async function logisticsScreen() {
   }
   root.querySelector('.search-in').addEventListener('input', (e) => { f.text = e.target.value; draw(); });
   draw();
-  const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(drawEc);
-  s.cleanup = () => { u1(); u2(); };
+  const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(drawEc), u3 = fc.onFullsChange(drawEc);
+  s.cleanup = () => { u1(); u2(); u3(); };
   return s;
 }
 

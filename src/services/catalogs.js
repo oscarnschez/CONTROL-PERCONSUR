@@ -44,11 +44,16 @@ export const KINDS = {
   yards: { store: db.S.yards, title: 'Patios de vacíos', one: 'patio', perCompany: false,
     fields: [['name', 'Nombre', { upper: true }], ['address', 'Dirección (opcional)', { textarea: true }], ['notes', 'Observaciones (opcional)', { textarea: true }], ['active', 'Estado', { select: [['', 'Activo'], ['no', 'Inactivo']] }]],
     label: (x) => x.name, sub: (x) => [x.active === 'no' ? 'Inactivo' : '', x.address].filter(Boolean).join(' | ') },
+  /* Control de llenos: dónde se recogen contenedores llenos fuera de puerto (patios, bodegas, plantas de consolidación) */
+  loadingYards: { store: db.S.loadingYards, title: 'Patios e instalaciones de carga', one: 'patio o instalación', perCompany: false,
+    fields: [['name', 'Nombre', { upper: true }], ['address', 'Dirección (opcional)', { textarea: true }], ['notes', 'Observaciones (opcional)', { textarea: true }], ['active', 'Estado', { select: [['', 'Activo'], ['no', 'Inactivo']] }]],
+    label: (x) => x.name, sub: (x) => [x.active === 'no' ? 'Inactivo' : '', x.address].filter(Boolean).join(' | ') },
 };
 /* Catálogos con lugar físico: se pueden ubicar en el mapa (pin {lat,lng}) para marcarlos como destino */
-export const GEO_KINDS = ['places', 'plants', 'terminals', 'yards'];
+export const GEO_KINDS = ['places', 'plants', 'terminals', 'yards', 'loadingYards'];
 /* Patios disponibles para seleccionar (los inactivos se conservan para el historial pero no se ofrecen) */
 export const activeYards = () => list('yards').filter((y) => y.active !== 'no');
+export const activeLoadingYards = () => list('loadingYards').filter((y) => y.active !== 'no');
 
 const cache = {};
 export async function loadCatalogs() {

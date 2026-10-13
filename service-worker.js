@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'ad8afeaa38';
+const VERSION = 'd4892658b7';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -29,6 +29,7 @@ const PRECACHE = [
   "./src/domain/empties/empties.js",
   "./src/domain/fuel/fuel.js",
   "./src/domain/fuel/report.js",
+  "./src/domain/fulls/fulls.js",
   "./src/domain/gps/fleet.js",
   "./src/domain/gps/geo.js",
   "./src/domain/gps/gps.js",
@@ -71,6 +72,8 @@ const PRECACHE = [
   "./src/services/empties.js",
   "./src/services/folios.js",
   "./src/services/fuel.js",
+  "./src/services/fullDossier.js",
+  "./src/services/fulls.js",
   "./src/services/geocode.js",
   "./src/services/gps.js",
   "./src/services/libs.js",
@@ -123,6 +126,7 @@ const PRECACHE = [
   "./src/ui/screens/empties.js",
   "./src/ui/screens/excelCodes.js",
   "./src/ui/screens/fuel.js",
+  "./src/ui/screens/fulls.js",
   "./src/ui/screens/gpsMonitor.js",
   "./src/ui/screens/gpsPanel.js",
   "./src/ui/screens/gpsSettings.js",

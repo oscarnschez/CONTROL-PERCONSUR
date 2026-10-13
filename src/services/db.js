@@ -20,10 +20,13 @@
  *     (vehicleId o trailerId del catálogo), trabajos, fallas, intervenciones por componente (datos del diagrama),
  *     llantas, aceite, fotos, bitácora, intervalos y ejes por equipo, y componentes agregados por el usuario
  *   tariffSheets   Tarifas (v11): un registro por apartado (p. ej. BAYER INBOUND 2026) con sus rutas y montos
+ *   loadingYards, fullContainerLoads, fullContainerDocuments, fullContainerEvents   Control de llenos (v12): patios e
+ *     instalaciones de carga, cargas programadas (relacionadas por IDs con terminales, patios, unidades, operadores y
+ *     remolques), sus documentos uno por uno (el archivo vive en attachments) y su historial
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 11;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas */
+const DB_VERSION = 12;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -39,6 +42,7 @@ export const S = {
   maintenanceAttachments: 'maintenanceAttachments', maintenanceEvents: 'maintenanceEvents', maintenanceProfiles: 'maintenanceProfiles',
   maintenanceParts: 'maintenanceParts',
   tariffSheets: 'tariffSheets',
+  loadingYards: 'loadingYards', fullContainerLoads: 'fullContainerLoads', fullContainerDocuments: 'fullContainerDocuments', fullContainerEvents: 'fullContainerEvents',
 };
 
 let dbp = null;
@@ -100,6 +104,11 @@ export function openDB() {
       mk(S.maintenanceParts, { keyPath: 'id' });
       /* v11 — Tarifas: un registro por apartado con sus rutas (zona, ciudad de origen, planta destino y monto por unidad) */
       mk(S.tariffSheets, { keyPath: 'id' });
+      /* v12 — Control de llenos: patios de carga, cargas programadas (por contenedor, fecha, unidad y operador), documentos y bitácora */
+      mk(S.loadingYards, { keyPath: 'id' });
+      mk(S.fullContainerLoads, { keyPath: 'id' }, [['containerNumber', 'containerNumber'], ['scheduledDate', 'scheduledDate'], ['vehicleId', 'vehicleId'], ['operatorId', 'operatorId'], ['status', 'status']]);
+      mk(S.fullContainerDocuments, { keyPath: 'id' }, [['loadId', 'loadId']]);
+      mk(S.fullContainerEvents, { keyPath: 'id' }, [['loadId', 'loadId'], ['createdAt', 'createdAt']]);
     };
     req.onsuccess = () => {
       const db = req.result;

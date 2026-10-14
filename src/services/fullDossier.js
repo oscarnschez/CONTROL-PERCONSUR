@@ -16,7 +16,11 @@ export const HEAVY_BYTES = 60 * 1024 * 1024;
 
 /* Resumen previo (sin combinar): secciones con sus páginas, tamaño estimado y lo que se omitirá */
 export async function dossierPlan(load) {
-  const d = dossierDocs(docsOf(load.id), load), missing = await missingFiles(load.id);
+  return planDossier(load, docsOf(load.id), await missingFiles(load.id));
+}
+/* El mismo resumen con los documentos y los archivos faltantes ya conocidos (sin leer la base): la vista previa lo recalcula al reordenar */
+export function planDossier(load, docs, missing) {
+  const d = dossierDocs(docs, load);
   const sections = [], unavailable = [];
   let page = 1, bytes = 0;
   for (const doc of d.included) {

@@ -15,7 +15,7 @@ import * as db from './db.js';
 import * as media from './media.js';
 import { listAll } from './catalogs.js';
 import { vehicles as fleetUnits } from './fuel.js';
-import { operatorById, allTrips } from './operators.js';
+import { operatorById, operatorList, allTrips } from './operators.js';
 import { processFile, kindOf, MAX_FILE } from './tripAttachments.js';
 import {
   checkLoad, isOpenLoad, isStatus, loadStatus, reconcileDocs, defaultRequired, docSummary, sortDocs, hasFile, docLabel, docType, isTime,
@@ -53,17 +53,40 @@ export const loadingYardById = (id) => (id ? listAll('loadingYards').find((y) =>
 export const unitById = (id) => (id ? fleetUnits().find((u) => u.id === id) || null : null);
 export const trailerById = (id) => (id ? listAll('trailers').find((t) => t.id === id) || null : null);
 
-/* Datos visibles de la carga, con los nombres actuales del catálogo */
-export function view(r) {
-  const u = unitById(r.vehicleId), t = trailerById(r.trailerId), o = r.operatorId ? operatorById(r.operatorId) : null;
-  const term = r.locationType === 'port' ? terminalById(r.terminalId) : null, yard = r.locationType === 'offport' ? loadingYardById(r.yardId) : null;
+/* Datos visibles de la carga, con los nombres actuales del catálogo. get resuelve cada ID (ver viewer) */
+function viewWith(r, get) {
+  const u = get.unit(r.vehicleId), t = get.trailer(r.trailerId), o = get.operator(r.operatorId);
+  const term = r.locationType === 'port' ? get.terminal(r.terminalId) : null, yard = r.locationType === 'offport' ? get.yard(r.yardId) : null;
   const placeRec = term || yard;
   return {
     unit: u ? u.label : '', placas: u ? u.placas : '', unitRec: u, trailer: t ? t.placas : '', trailerType: t ? t.type || '' : '', trailerRec: t,
     operator: o ? o.name : '', operatorRec: o, place: placeRec ? placeRec.name : '', placeRec, placeAddress: placeRec ? placeRec.address || '' : '',
-    location: locationLabel(r.locationType), docs: summaryOf(r), weight: weightText(r.weightKg),
-    trip: r.tripId ? allTrips().find((x) => x.id === r.tripId) || null : null,
+    location: locationLabel(r.locationType), docs: docSummary(get.docs(r.id)), weight: weightText(r.weightKg), trip: get.trip(r.tripId),
   };
+}
+const DIRECT = {
+  unit: unitById, trailer: trailerById, operator: (id) => (id ? operatorById(id) : null), terminal: terminalById, yard: loadingYardById,
+  docs: (id) => docsOf(id), trip: (id) => (id ? allTrips().find((x) => x.id === id) || null : null),
+};
+export const view = (r) => viewWith(r, DIRECT);
+/*
+ * Lo mismo para muchas cargas a la vez (pizarra, listas y filtros de un mismo dibujo): los catálogos y los documentos se
+ * indexan una sola vez y cada carga se resuelve una sola vez. Se crea uno nuevo en cada dibujo para no mostrar datos viejos.
+ * viewer().docsOf(loadId) da los documentos ya agrupados (para summary).
+ */
+export function viewer() {
+  const idx = (list) => { const m = new Map(list.map((x) => [x.id, x])); return (id) => (id ? m.get(id) || null : null); };
+  const byLoad = new Map();
+  for (const d of docs || []) { const l = byLoad.get(d.loadId); if (l) l.push(d); else byLoad.set(d.loadId, [d]); }
+  for (const [k, l] of byLoad) byLoad.set(k, sortDocs(l));
+  const get = {
+    unit: idx(fleetUnits()), trailer: idx(listAll('trailers')), operator: idx(operatorList()), terminal: idx(listAll('terminals')), yard: idx(listAll('loadingYards')),
+    docs: (id) => byLoad.get(id) || [], trip: idx(allTrips()),
+  };
+  const memo = new Map();
+  const fn = (r) => { let v = memo.get(r.id); if (!v) memo.set(r.id, (v = viewWith(r, get))); return v; };
+  fn.docsOf = get.docs;
+  return fn;
 }
 
 /* ===== Escritura con historial ===== */
@@ -151,7 +174,7 @@ export async function update(id, input) {
   const bad = checkTransport(c.load, prev); if (bad) return { errors: { transport: bad } };
   const next = { ...prev, ...c.load, updatedAt: Date.now(), updatedBy: actor() };
   await writeLoad(next);
-  const pv = view(prev), nv = view(next), ev = [];
+  const nv = view(next), ev = [];
   if (prev.locationType !== next.locationType || prev.terminalId !== next.terminalId || prev.yardId !== next.yardId) {
     await reconcile(next);
     ev.push(['location', `${nv.location}${nv.place ? ' · ' + nv.place : ''}`]);
@@ -231,11 +254,14 @@ export async function remove(id) {
   await loadFulls();
   const r = need(id);
   if (r.status !== 'cancelled') throw new Error('Solo se eliminan cargas canceladas. Cancélala primero.');
-  for (const d of docsOf(id)) await deleteDoc(d.id);
+  for (const d of docsOf(id)) await db.del(db.S.fullContainerDocuments, d.id);
+  docs = docs.filter((d) => d.loadId !== id);
   for (const e of eventsOf(id)) await db.del(db.S.fullContainerEvents, e.id);
   events = events.filter((e) => e.loadId !== id);
   await db.del(db.S.fullContainerLoads, id);
   loads = loads.filter((x) => x.id !== id);
+  /* Todos los archivos de la carga, también los que ningún documento referencia (p. ej. un guardado que se interrumpió) */
+  try { await media.removeOwned('fcl:' + id); } catch (e) { /* */ }
   changed();
 }
 

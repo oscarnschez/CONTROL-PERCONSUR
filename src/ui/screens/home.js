@@ -8,6 +8,7 @@ import { esc, agoText, relDay } from '../../domain/shared/format.js';
 import { puertoHasData } from '../../domain/puerto/model.js';
 import { campoHasData } from '../../domain/campo/model.js';
 import { icon } from '../components/icons.js';
+import { signalMini } from '../components/publishSignal.js';
 import { DIVISION_ICON } from '../../config/modules.js';
 import { startPuerto, startCampo, discardDraft, draftRoute } from '../flows.js';
 import { confirmDestructive } from '../components/sheet.js';
@@ -73,7 +74,10 @@ export async function homeScreen() {
       : decide ? 'Información compartida: decide qué información queda'
         : st.error ? 'Información compartida: no se pudo publicar'
           : st.phase ? 'Publicando…' : st.dirty ? 'Cambios por publicar' : st.at ? 'Compartido · publicado ' + whenText(st.at) : 'Información compartida';
-    pill.className = 'sync-pill' + (warn ? ' warn' : '');
+    /* Publicando: el logotipo envía señal a la nube (versión pequeña; no se recrea mientras dura, así no se reinicia) */
+    const pub = st.role === 'write' && !warn && (st.phase === 'publicando' || st.phase === 'archivos');
+    pill.className = 'sync-pill' + (warn ? ' warn' : '') + (pub ? ' pub' : '');
+    if (pub) { if (!pill.querySelector('.ps-mini')) pill.innerHTML = `${signalMini()}<span></span>`; pill.lastElementChild.textContent = text; return; }
     pill.innerHTML = `${warn ? icon.alert : icon.cloud}<span>${esc(text)}</span>`;
   };
   drawPill();

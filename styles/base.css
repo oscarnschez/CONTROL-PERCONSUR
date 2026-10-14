@@ -22,61 +22,34 @@ html.sheet-open,html.sheet-open body,html.is-busy body{overflow:hidden}
 .band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:22%;background:repeating-linear-gradient(90deg,var(--brand-orange) 0 9px,var(--brand-orange-d) 9px 12px,var(--brand-orange-m) 12px 14px)}
 .band.slim{height:4px;width:96px;margin:18px auto 0}
 
-/* Pantalla de carga = apertura de la app (ui/components/opening.js).
-   Dos puertas de contenedor cerradas con la placa de PERCONSUR sobre la junta. La entrada es solo CSS y empieza con el
-   primer pintado (fill «backwards»: al terminar no retiene valores y la apertura usa transiciones). Al estar lista la app
-   (.sp-open) el sello se abre por la mitad, la placa se retira y las puertas giran sobre sus bisagras hacia el fondo,
-   como al abrir el contenedor desde dentro. El fondo es opaco hasta la apertura: la app no se asoma mientras aparecen.
-   Al recargar en la misma sesión (html.sp-warm) no hay entrada: solo se desvanece (.out). */
-#splash{--door:#22377C;--door-2:#16265E;--rib-l:rgba(255,255,255,.055);--rib-d:rgba(3,8,30,.2);--bar:rgba(255,255,255,.15);--plate:#FFFFFF;
-  position:fixed;inset:0;z-index:var(--z-splash);display:grid;place-items:center;overflow:hidden;background:var(--canvas);perspective:max(900px,110vw);transition:opacity .28s ease}
-:root[data-theme="dark"] #splash{--door:#1A2A60;--door-2:#0E1838;--plate:#F1F3F8}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #splash{--door:#1A2A60;--door-2:#0E1838;--plate:#F1F3F8}}
+/* Pantalla de carga = apertura de la app (ui/components/opening.js). Sobria: sobre el fondo de la app aparecen el
+   logotipo y el nombre con un desvanecido breve y una línea fina indica la carga; la razón social va al pie. Cuando la
+   app está lista (.sp-exit) la línea se completa y la pantalla se desvanece. Las animaciones de entrada usan fill
+   «backwards»: al terminar no retienen valores y la salida usa transiciones. Al recargar en la misma sesión
+   (html.sp-warm) no hay entrada: solo se desvanece (.out). */
+#splash{position:fixed;inset:0;z-index:var(--z-splash);background:var(--canvas);display:grid;place-items:center;transition:opacity .28s ease}
 #splash.out{opacity:0;pointer-events:none}
-.sp-door{position:absolute;top:0;bottom:0;width:50%;backface-visibility:hidden;
-  background:repeating-linear-gradient(90deg,var(--rib-l) 0 13px,var(--rib-d) 13px 17px,transparent 17px 26px),linear-gradient(180deg,var(--door),var(--door-2));
-  animation:spIn .22s ease backwards}
-.sp-l{left:0;transform-origin:left center;box-shadow:inset -1px 0 0 rgba(0,0,0,.5)}
-.sp-r{right:0;transform-origin:right center;box-shadow:inset 1px 0 0 rgba(255,255,255,.07)}
-/* Barras de cierre (dos por puerta) con su manija a media altura */
-.sp-door::before,.sp-door::after{content:"";position:absolute;background:var(--bar);border-radius:2px}
-.sp-door::before{top:7%;bottom:7%;width:4px}
-.sp-door::after{top:66%;width:18px;height:6px}
-.sp-l::before{left:26%;box-shadow:22vw 0 0 var(--bar)}
-.sp-l::after{left:calc(26% + 4px);box-shadow:22vw 0 0 var(--bar)}
-.sp-r::before{right:26%;box-shadow:-22vw 0 0 var(--bar)}
-.sp-r::after{right:calc(26% + 4px);box-shadow:-22vw 0 0 var(--bar)}
-/* Sombra de la puerta al girar */
-.sp-door i{position:absolute;inset:0;background:rgba(2,6,22,.62);opacity:0;transition:opacity .62s ease .12s}
-.sp-inner{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px;text-align:center;transition:opacity .3s ease .1s,transform .3s ease .1s}
-.sp-plate{width:104px;height:104px;border-radius:26px;background:var(--plate);display:grid;place-items:center;
-  box-shadow:0 16px 36px rgba(2,6,24,.42),0 2px 6px rgba(2,6,24,.3);animation:spPlate .5s var(--ease) .08s backwards}
-.sp-mark{width:74px;height:74px;object-fit:contain}
-#splash .sp-word{font-size:30px;color:#FFFFFF;letter-spacing:.1em;margin:6px 0 0 .1em;animation:spTrack .64s var(--ease) .22s backwards}
-.sp-seal{display:flex;width:136px;height:4px}
-.sp-seal i{flex:1;background:repeating-linear-gradient(90deg,var(--brand-orange) 0 9px,var(--brand-orange-d) 9px 12px,var(--brand-orange-m) 12px 14px);
-  animation:spSeal .42s var(--ease) .52s backwards;transition:translate .28s ease,opacity .28s ease}
-.sp-seal i:first-child{transform-origin:right center;border-radius:2px 0 0 2px}
-.sp-seal i:last-child{transform-origin:left center;border-radius:0 2px 2px 0;background-position:-4px 0}
-.sp-legal{font-size:11px;font-weight:600;letter-spacing:.24em;margin-left:.24em;color:rgba(255,255,255,.68);animation:spIn .42s ease .7s backwards}
-.sp-msg{max-width:300px;color:rgba(255,255,255,.92);font-size:var(--fs-subhead);margin:8px 0 0}
+.sp-inner{display:flex;flex-direction:column;align-items:center;padding:24px;text-align:center;transition:opacity .2s ease .14s,transform .34s var(--ease) .08s}
+.sp-mark{width:72px;height:72px;object-fit:contain;animation:spRise .5s var(--ease) .04s backwards}
+.sp-word{font-size:28px;margin-top:14px;animation:spRise .5s var(--ease) .14s backwards}
+.sp-line{width:112px;height:2px;margin-top:22px;border-radius:1px;background:var(--line-2);overflow:hidden;animation:spFade .35s ease .26s backwards}
+.sp-line i{display:block;height:100%;background:var(--tint);transform-origin:left center;transform:scaleX(.82);
+  animation:spLoad .62s cubic-bezier(.3,.6,.2,1) .26s backwards;transition:transform .22s ease}
+.sp-legal{position:absolute;left:0;right:0;bottom:calc(var(--sab) + 28px);text-align:center;font-size:11px;font-weight:600;letter-spacing:.2em;padding-left:.2em;color:var(--muted);animation:spFade .5s ease .32s backwards;transition:opacity .2s ease .14s}
+.sp-msg{max-width:300px;color:var(--ink-2);font-size:var(--fs-subhead);margin:16px 0 0}
 .sp-msg:empty{display:none}
-#splash.err .sp-seal{display:none}
-@keyframes spIn{from{opacity:0}}
-@keyframes spPlate{from{opacity:0;transform:translateY(10px) scale(.86)}}
-@keyframes spTrack{from{opacity:0;letter-spacing:.55em}}
-@keyframes spSeal{from{scale:0 1}}
-/* Apertura: el sello se abre, la placa se retira y las puertas giran hacia el fondo (sin bloquear los toques) */
-#splash.sp-open{pointer-events:none;background:transparent}
-#splash.sp-open .sp-seal i:first-child{translate:-16px 0;opacity:0}
-#splash.sp-open .sp-seal i:last-child{translate:16px 0;opacity:0}
-#splash.sp-open .sp-inner{opacity:0;transform:scale(.95)}
-#splash.sp-open .sp-door{transition:transform .74s cubic-bezier(.6,.02,.28,1) .16s,opacity .26s ease .62s;opacity:0}
-#splash.sp-open .sp-l{transform:rotateY(96deg)}
-#splash.sp-open .sp-r{transform:rotateY(-96deg)}
-#splash.sp-open .sp-door i{opacity:1}
-/* Al recargar en la misma sesión: la placa quieta, sin entrada */
-.sp-warm #splash .sp-door,.sp-warm #splash .sp-plate,.sp-warm #splash .sp-word,.sp-warm #splash .sp-seal i,.sp-warm #splash .sp-legal{animation:none}
+#splash.err .sp-line{display:none}
+@keyframes spRise{from{opacity:0;transform:translateY(6px)}}
+@keyframes spFade{from{opacity:0}}
+@keyframes spLoad{from{transform:scaleX(0)}}
+/* Salida escalonada (sin bloquear los toques): la línea se completa, el contenido se retira con un leve alejamiento y
+   después se desvanece el fondo; así el logotipo no queda encimado sobre la pantalla que aparece */
+#splash.sp-exit{opacity:0;pointer-events:none;transition:opacity .28s ease .26s}
+#splash.sp-exit .sp-line i{transform:scaleX(1)}
+#splash.sp-exit .sp-inner{opacity:0;transform:scale(.985)}
+#splash.sp-exit .sp-legal{opacity:0}
+/* Al recargar en la misma sesión: sin entrada */
+.sp-warm #splash .sp-mark,.sp-warm #splash .sp-word,.sp-warm #splash .sp-line,.sp-warm #splash .sp-line i,.sp-warm #splash .sp-legal{animation:none}
 
 /* Transiciones de pantalla */
 /* Solo se anima el contenido (nunca el contenedor de las barras fijas) y sin dejar el transform aplicado:

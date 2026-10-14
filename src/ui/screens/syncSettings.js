@@ -14,6 +14,10 @@ import { esc } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
 import { toast } from '../components/toast.js';
 import { actionSheet } from '../components/sheet.js';
+import { signalStage } from '../components/publishSignal.js';
+
+/* La animación de publicar se ve al menos este tiempo (una publicación rápida no parpadea) y luego la palomita */
+const SIGNAL_MIN = 1200, SIGNAL_DONE = 1800;
 
 export async function syncSettingsScreen() {
   const c = sync.config();
@@ -21,7 +25,9 @@ export async function syncSettingsScreen() {
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Ajustes</span></button></header>
     <h1 class="title">Información compartida</h1>
     <p class="page-lead">Un solo dispositivo captura la información y los demás la consultan al día, sin importar respaldos. Viaja por el mismo intermediario de Cloudflare (Worker) que el GPS.</p>
-    <section class="grp"><div class="grp-h"><h3>Estado</h3></div><div class="grp-b" data-state></div></section>
+    <section class="grp"><div class="grp-h"><h3>Estado</h3></div><div class="grp-b">
+      <div class="ps-wrap" data-ps hidden>${signalStage()}<p class="ps-cap" data-pscap role="status"></p></div>
+      <div data-state></div></div></section>
     <div data-decide></div>
     <section class="grp"><div class="grp-h"><h3>Conexión</h3></div><div class="grp-b">
       <form data-cfg novalidate>
@@ -60,13 +66,38 @@ export async function syncSettingsScreen() {
         : st.remote === null && st.checkedAt ? line(icon.info, 'El capturista todavía no publica información.') : line(icon.refresh, 'Esperando la información del capturista…');
       if (st.pendingFiles && !phase) html += line(icon.alert, `${st.pendingFiles} archivo${st.pendingFiles === 1 ? '' : 's'} por descargar; se reintenta solo.`, 'warn');
     }
-    if (phase) html += line(icon.refresh, esc(phase), 'busy');
+    /* Al publicar, el estado lo da la animación de señal (drawSignal); al recibir, una línea */
+    if (phase && !publishingNow(st)) html += line(icon.refresh, esc(phase), 'busy');
     if (st.error) html += line(icon.alert, esc(st.error), 'warn');
     const deciding = st.role === 'write' && (st.conflict || sync.needsDecision());
     if (st.role && !deciding) html += `<div class="sheet-acts col">${st.role === 'write' ? `<button type="button" class="btn-primary" data-pub${st.phase ? ' disabled' : ''}>${icon.cloud}<span>Publicar ahora</span></button>` : `<button type="button" class="btn-primary" data-pull${st.phase ? ' disabled' : ''}>${icon.refresh}<span>Revisar ahora</span></button>`}</div>`;
     box.innerHTML = html;
+    drawSignal(st);
     drawDecision();
     root.querySelector('[data-off]').innerHTML = st.role ? `<section class="grp"><div class="grp-b list-actions"><button type="button" class="row-btn danger" data-off-btn>${icon.linkOff}<span>Dejar de compartir en este dispositivo</span></button></div></section>` : '';
+  }
+  /*
+   * Publicando: el logotipo emite señal a la nube. Es un elemento fijo (no se vuelve a crear en cada cambio de estado,
+   * así la animación no se reinicia con el avance de los archivos). Al terminar sin error, la nube muestra la palomita.
+   */
+  const publishingNow = (st) => st.role === 'write' && (st.phase === 'publicando' || st.phase === 'archivos');
+  let signalSince = 0, signalTimer = null;
+  function drawSignal(st) {
+    const wrap = root.querySelector('[data-ps]'), stage = wrap.querySelector('.ps-stage'), cap = wrap.querySelector('[data-pscap]');
+    if (publishingNow(st)) {
+      clearTimeout(signalTimer); signalTimer = null;
+      if (wrap.hidden || stage.classList.contains('ps-done')) { signalSince = performance.now(); stage.classList.remove('ps-done'); wrap.hidden = false; }
+      cap.textContent = st.phase === 'archivos' ? `Subiendo archivos${st.progress ? ` ${st.progress.done}/${st.progress.total}` : ''}…` : 'Publicando información…';
+      return;
+    }
+    if (wrap.hidden || stage.classList.contains('ps-done') || signalTimer) return;
+    const finish = () => {
+      const now = sync.status();
+      if (now.error || now.conflict) { wrap.hidden = true; signalTimer = null; return; }
+      stage.classList.add('ps-done'); cap.textContent = 'Información publicada';
+      signalTimer = setTimeout(() => { wrap.hidden = true; stage.classList.remove('ps-done'); signalTimer = null; }, SIGNAL_DONE);
+    };
+    signalTimer = setTimeout(finish, Math.max(0, SIGNAL_MIN - (performance.now() - signalSince)));
   }
   /* Capturista: la nube tiene información de otro dispositivo */
   function drawDecision() {
@@ -134,6 +165,6 @@ export async function syncSettingsScreen() {
   on(root, 'click', '[data-back]', () => back('/ajustes'));
   drawState();
   const un = sync.onSyncChange(drawState);
-  s.cleanup = un;
+  s.cleanup = () => { un(); clearTimeout(signalTimer); };
   return s;
 }

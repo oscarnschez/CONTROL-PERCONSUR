@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '873b401997';
+const VERSION = '29c57daaaf';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -104,6 +104,7 @@ const PRECACHE = [
   "./src/ui/components/opening.js",
   "./src/ui/components/picker.js",
   "./src/ui/components/pinPicker.js",
+  "./src/ui/components/publishSignal.js",
   "./src/ui/components/scrollHints.js",
   "./src/ui/components/sheet.js",
   "./src/ui/components/toast.js",

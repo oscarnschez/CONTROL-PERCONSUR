@@ -87,6 +87,21 @@ try:
     ok('Cambios por publicar' in txt(a,'[data-syncpill]'),'un cambio queda pendiente: «'+txt(a,'[data-syncpill]')+'»')
     v1=sa['ver']; sa=wait_sync(a, lambda s: s['ver']!=v1 and not s['dirty'] and not s['phase'], timeout=45)
     ok(sa['ver']!=v1 and wget('/v1/datos/estado')['published']['ver']==sa['ver'],'se publica solo unos segundos después del último cambio (sin pulsar nada)')
+    # Animación al publicar: el logotipo de PERCONSUR envía señal a la nube
+    a.goto(BASE+'#/'); a.wait_for_selector('[data-syncpill]'); a.wait_for_timeout(300)
+    a.evaluate("()=>{window.__mini=false; new MutationObserver(()=>{if(document.querySelector('[data-syncpill] .ps-mini'))window.__mini=true}).observe(document.body,{subtree:true,childList:true})}")
+    a.evaluate("async()=>{const s=await import('./src/services/sync.js'); await s.publish({manual:true})}"); a.wait_for_timeout(300)
+    ok(a.evaluate("window.__mini") and a.locator('[data-syncpill] .ps-mini').count()==0 and 'Compartido · publicado' in txt(a,'[data-syncpill]'),'Inicio: mientras publica, el aviso muestra el logotipo enviando señal a la nube; al terminar vuelve a «Compartido · publicado»')
+    a.goto(BASE+'#/ajustes/compartir'); a.wait_for_selector('.sync-set'); a.wait_for_timeout(300)
+    a.locator('[data-pub]').click(); a.wait_for_selector('[data-ps]:not([hidden])',timeout=5000)
+    ps=a.evaluate("()=>{const w=document.querySelector('[data-ps]'); return {mark:w.querySelector('.ps-mark').complete, cloud:!!w.querySelector('.ps-cloud svg'), waves:w.querySelectorAll('.ps-waves i').length, cap:w.querySelector('[data-pscap]').textContent, anim:getComputedStyle(w.querySelector('.ps-waves i')).animationName, hidden:w.querySelector('.ps-stage').getAttribute('aria-hidden'), line:document.querySelector('[data-state]').innerText.includes('Publicando información')}}")
+    ok(ps['mark'] and ps['cloud'] and ps['waves']==3 and ps['anim']=='psWave' and ps['hidden']=='true' and (ps['cap']=='Publicando información…' or ps['cap'].startswith('Subiendo archivos')) and not ps['line'],'Ajustes: al publicar, el logotipo de PERCONSUR emite ondas de señal hacia la nube («'+ps['cap']+'»)')
+    shot(a,'01b_publicando')
+    a.wait_for_selector('[data-ps] .ps-stage.ps-done',timeout=10000)
+    ok(txt(a,'[data-pscap]')=='Información publicada' and a.locator('[data-ps] .ps-ok').evaluate("e=>getComputedStyle(e).opacity")=='1','al terminar, la nube muestra la palomita y «Información publicada»'); shot(a,'01c_publicado')
+    a.wait_for_selector('[data-ps]',state='hidden',timeout=5000)
+    ok('Publicado hoy' in txt(a,'[data-state]'),'después vuelve el estado normal: «'+txt(a,'[data-state]')[:60]+'»')
+    sa=wait_sync(a, lambda s: s['ver'] and not s['phase'] and not s['dirty'])   # versión vigente tras estas publicaciones
 
     # ===== B: consulta (iPhone) =====
     cb=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block'); setup_ctx(cb); bp=cb.new_page(); watch(bp); login(bp)

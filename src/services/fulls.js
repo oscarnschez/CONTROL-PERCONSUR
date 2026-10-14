@@ -72,27 +72,28 @@ async function addEvent(load, eventType, { details = '', docType: dt = '', previ
     id: db.uid('fe_'), loadId: load.id, containerNumber: load.containerNumber, eventType, docType: dt, details, previousStatus, newStatus: load.status,
     date: dayStr(now), time: hmStr(now), createdAt: now.getTime(), createdBy: actor(),
   };
-  events.push(e);
   await db.put(db.S.fullContainerEvents, e);
+  events.push(e);
   return e;
 }
+/* Primero la base y después el caché: si la base rechaza la escritura (modo consulta, sin espacio) la pantalla no muestra un cambio que no se guardó */
 async function writeLoad(rec) {
+  await db.put(db.S.fullContainerLoads, rec);
   const i = loads.findIndex((x) => x.id === rec.id);
   if (i >= 0) loads[i] = rec; else loads.push(rec);
-  await db.put(db.S.fullContainerLoads, rec);
   return rec;
 }
 async function writeDoc(rec) {
+  await db.put(db.S.fullContainerDocuments, rec);
   const i = docs.findIndex((x) => x.id === rec.id);
   if (i >= 0) docs[i] = rec; else docs.push(rec);
-  await db.put(db.S.fullContainerDocuments, rec);
   return rec;
 }
 async function deleteDoc(id) {
   const d = docById(id); if (!d) return;
-  if (d.storageKey) { try { await media.remove(d.storageKey); } catch (e) { /* */ } }
   await db.del(db.S.fullContainerDocuments, id);
   docs = docs.filter((x) => x.id !== id);
+  if (d.storageKey) { try { await media.remove(d.storageKey); } catch (e) { /* */ } }
 }
 const need = (id) => { const r = byId(id); if (!r) throw new Error('La carga ya no existe.'); return r; };
 const newDoc = (loadId, docType, required, extra = {}) => {
@@ -107,13 +108,17 @@ async function reconcile(load) {
   for (const id of plan.remove) await deleteDoc(id);
   return plan;
 }
-/* Validación de los IDs del transporte contra los catálogos */
-function checkTransport(load) {
-  if (load.vehicleId && !unitById(load.vehicleId)) return 'La unidad ya no está en el catálogo.';
-  if (load.operatorId && !operatorById(load.operatorId)) return 'El operador ya no está en el catálogo.';
-  if (load.trailerId && !trailerById(load.trailerId)) return 'El remolque ya no está en el catálogo.';
-  if (load.locationType === 'port' && !terminalById(load.terminalId)) return 'La terminal ya no está en el catálogo.';
-  if (load.locationType === 'offport' && !loadingYardById(load.yardId)) return 'El patio o instalación ya no está en el catálogo.';
+/*
+ * Validación de los IDs del transporte y del lugar contra los catálogos. Al editar (prev) solo se revisan los que cambian:
+ * una carga cerrada cuya terminal o patio se borró del catálogo después se puede seguir corrigiendo.
+ */
+function checkTransport(load, prev = null) {
+  const changedRef = (k) => !prev || prev[k] !== load[k] || (k !== 'vehicleId' && k !== 'operatorId' && k !== 'trailerId' && prev.locationType !== load.locationType);
+  if (load.vehicleId && changedRef('vehicleId') && !unitById(load.vehicleId)) return 'La unidad ya no está en el catálogo.';
+  if (load.operatorId && changedRef('operatorId') && !operatorById(load.operatorId)) return 'El operador ya no está en el catálogo.';
+  if (load.trailerId && changedRef('trailerId') && !trailerById(load.trailerId)) return 'El remolque ya no está en el catálogo.';
+  if (load.locationType === 'port' && changedRef('terminalId') && !terminalById(load.terminalId)) return 'La terminal ya no está en el catálogo.';
+  if (load.locationType === 'offport' && changedRef('yardId') && !loadingYardById(load.yardId)) return 'El patio o instalación ya no está en el catálogo.';
   return '';
 }
 const whenText = (r) => `${fmtDate(r.scheduledDate)} ${r.scheduledTime}`;
@@ -143,7 +148,7 @@ export async function update(id, input) {
   const prev = need(id);
   const c = checkLoad({ ...prev, ...input }, { existing: all(), selfId: id });
   if (c.errors) return c;
-  const bad = checkTransport(c.load); if (bad) return { errors: { transport: bad } };
+  const bad = checkTransport(c.load, prev); if (bad) return { errors: { transport: bad } };
   const next = { ...prev, ...c.load, updatedAt: Date.now(), updatedBy: actor() };
   await writeLoad(next);
   const pv = view(prev), nv = view(next), ev = [];
@@ -185,7 +190,7 @@ export async function assign(id, { vehicleId = null, operatorId = null, trailerI
   await loadFulls();
   const prev = need(id);
   const next = { ...prev, vehicleId: vehicleId || null, operatorId: operatorId || null, trailerId: trailerId || null, updatedAt: Date.now(), updatedBy: actor() };
-  const bad = checkTransport(next); if (bad) throw new Error(bad);
+  const bad = checkTransport(next, prev); if (bad) throw new Error(bad);
   await writeLoad(next);
   const v = view(next);
   if (prev.vehicleId !== next.vehicleId) await addEvent(next, 'vehicle', { details: v.unit || 'Sin unidad' });
@@ -237,8 +242,9 @@ export async function remove(id) {
 /* ===== Documentos (uno por uno) ===== */
 /*
  * Adjunta un archivo: a un documento existente (lo reemplaza) o como documento nuevo del tipo indicado ('otro' = adicional).
- * Un archivo que no se puede procesar se conserva con fileStatus 'error' para reintentar o eliminarlo.
- * Devuelve el documento guardado; lanza un error solo si el tipo de archivo no se admite.
+ * Un archivo nuevo que no se puede procesar se conserva con fileStatus 'error' para reintentar o eliminarlo.
+ * Al reemplazar, un archivo que no se puede procesar no sustituye al anterior: se lanza un error y el documento queda igual.
+ * Devuelve el documento guardado; lanza un error si el tipo no se admite, si no hay espacio o si el reemplazo falla.
  */
 export async function attachFile(loadId, file, { docId = null, docType: type = 'otro', label = '' } = {}) {
   await loadFulls();
@@ -260,9 +266,11 @@ export async function attachFile(loadId, file, { docId = null, docType: type = '
     out = { ...doc, name, mimeType: p.type, kind, size: p.blob.size, pages: p.pages, w: p.w || null, h: p.h || null, storageKey, fileStatus: 'ok', attachedAt: now, updatedAt: now, updatedBy: who };
   } catch (e) {
     console.warn('documento', name, e);
+    if (replacing) throw new Error('No se pudo procesar el archivo nuevo; se conserva el anterior.');
     let storageKey = null;
     try { storageKey = await media.saveBlob(file, { owner: 'fcl:' + loadId, kind: 'fcl-doc', name }); } catch (e2) { /* sin espacio */ }
-    out = { ...doc, name, mimeType: file.type || '', kind, size: file.size, pages: 0, w: null, h: null, storageKey, fileStatus: storageKey ? 'error' : 'none', attachedAt: now, updatedAt: now, updatedBy: who };
+    if (!storageKey) throw new Error('No se pudo guardar en este dispositivo (sin espacio disponible).');
+    out = { ...doc, name, mimeType: file.type || '', kind, size: file.size, pages: 0, w: null, h: null, storageKey, fileStatus: 'error', attachedAt: now, updatedAt: now, updatedBy: who };
   }
   await writeDoc(out);
   if (oldKey && oldKey !== out.storageKey) { try { await media.remove(oldKey); } catch (e) { /* */ } }
@@ -283,15 +291,19 @@ export async function retryDoc(docId) {
   changed();
   return out;
 }
-/* Quita el archivo: un documento fijo (pedimento, DODA, cita, DEC) queda pendiente; un adicional desaparece */
+/*
+ * Quita el archivo: un documento fijo (pedimento, DODA, cita, DEC) queda pendiente; un adicional desaparece.
+ * Después se vuelve a aplicar la regla de ubicación: un DEC que se conservaba fuera de puerto solo por su archivo se quita.
+ */
 export async function removeFile(docId) {
   await loadFulls();
   const d = docById(docId); if (!d) return;
   const load = need(d.loadId), lbl = docLabel(d);
   if (d.docType === 'otro') await deleteDoc(docId);
   else {
-    if (d.storageKey) { try { await media.remove(d.storageKey); } catch (e) { /* */ } }
     await writeDoc({ ...d, name: '', mimeType: '', kind: null, size: 0, pages: 0, w: null, h: null, storageKey: null, fileStatus: 'none', attachedAt: null, updatedAt: Date.now(), updatedBy: actor() });
+    if (d.storageKey) { try { await media.remove(d.storageKey); } catch (e) { /* */ } }
+    await reconcile(load);
   }
   await addEvent(load, 'doc_removed', { docType: d.docType, details: `${lbl}${d.name ? ' · ' + d.name : ''}` });
   await touch(load);

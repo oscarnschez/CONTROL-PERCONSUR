@@ -24,7 +24,7 @@ def pdf(path, n, label):
     open(path,'wb').write(b''.join(out))
 pdf(os.path.join(FD,'Pedimento.pdf'),3,'Pedimento'); pdf(os.path.join(FD,'DODA.pdf'),1,'DODA'); pdf(os.path.join(FD,'Cita.pdf'),2,'Cita recinto')
 shutil.copy(os.path.join(HERE,'anexo.png'),os.path.join(FD,'DEC.png')); shutil.copy(os.path.join(HERE,'foto.jpg'),os.path.join(FD,'DEC nuevo.jpg')); shutil.copy(os.path.join(HERE,'anexo.pdf'),os.path.join(FD,'Carta porte.pdf'))
-shutil.copy(os.path.join(HERE,'foto.jpg'),os.path.join(FD,'Foto sello.jpg')); open(os.path.join(FD,'notas.txt'),'w').write('hola')
+shutil.copy(os.path.join(HERE,'foto.jpg'),os.path.join(FD,'Foto sello.jpg')); open(os.path.join(FD,'notas.txt'),'w').write('hola'); open(os.path.join(FD,'DEC dañado.pdf'),'wb').write(b'esto no es un PDF')
 srv=subprocess.Popen([sys.executable,'-m','http.server','8783','--bind','127.0.0.1'],cwd=APP,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); time.sleep(1)
 errs=[]; log=[]
 def ok(c,m): log.append(('OK  ' if c else 'FAIL')+' '+m)
@@ -70,6 +70,9 @@ try:
     ok(doclabels(pg)==['Pedimento','DODA','Cita de recinto portuario','DEC'] and docstate(pg,'DEC')=='Pendiente','2) dentro de puerto la documentación incluye DEC (requerido) junto con pedimento, DODA y cita')
     ok('Documentación incompleta (0 de 4)' in pg.locator('.fc-docst').inner_text() and 'Documentación pendiente' in hero,'estado documental inicial: incompleta (0 de 4)')
     shot(pg,'03_detalle'); pg.screenshot(path=f'{SH}/fl_03b_detalle.png',full_page=True)
+    pg.goto(BASE+'#/operacion'); pg.wait_for_selector('.mod-card'); pg.wait_for_timeout(400)
+    ok('Llenos hoy: 1' in pg.locator('.mod-card',has_text='Logística').first.inner_text(),'Operación: el resumen de Logística cuenta la carga de hoy («Llenos hoy: 1»)')
+    pg.goto(BASE+'#/operacion/logistica/llenos/'+id1); pg.wait_for_selector('.fc-detail'); pg.wait_for_timeout(400)
     # 3. Subir DEC individualmente
     docrow(pg,'DEC').locator('input[data-up]').set_input_files(os.path.join(FD,'DEC.png')); pg.wait_for_timeout(1800)
     ok(docstate(pg,'DEC')=='Adjuntado' and 'DEC.png' in docrow(pg,'DEC').inner_text() and 'Imagen' in docrow(pg,'DEC').inner_text() and 'DEC añadido' in pg.locator('.list').inner_text(),'3) DEC subido por separado: Adjuntado, nombre, tipo y fecha; evento «DEC añadido»')
@@ -80,6 +83,10 @@ try:
     ok('DEC nuevo.jpg' in docrow(pg,'DEC').inner_text() and 'DEC.png' not in docrow(pg,'DEC').inner_text() and 'Documento reemplazado' in pg.locator('.list').inner_text(),'4) DEC sustituido: nuevo archivo y evento «Documento reemplazado»')
     n_att=pg.evaluate("async()=>{const db=await import('./src/services/db.js'); return (await db.byIndex('attachments','owner','fcl:'+location.hash.split('/llenos/')[1])).length}")
     ok(n_att==1,'el archivo anterior se borra del dispositivo al reemplazar (1 archivo guardado)')
+    docrow(pg,'DEC').locator('[data-dact]').click(); pg.wait_for_selector('.asheet'); pg.get_by_role('button',name='Reemplazar archivo').click(); pg.wait_for_timeout(300)
+    pg.locator('[data-replace]').set_input_files(os.path.join(FD,'DEC dañado.pdf')); pg.wait_for_timeout(1800)
+    n_att2=pg.evaluate("async()=>{const db=await import('./src/services/db.js'); return (await db.byIndex('attachments','owner','fcl:'+location.hash.split('/llenos/')[1])).length}")
+    ok(docstate(pg,'DEC')=='Adjuntado' and 'DEC nuevo.jpg' in docrow(pg,'DEC').inner_text() and 'se conserva el anterior' in toast(pg) and pg.locator('.list').inner_text().count('Documento reemplazado')==1 and n_att2==1,'reemplazo con un archivo que no se puede procesar: se avisa y el DEC conserva su archivo anterior')
     # 5. Eliminar DEC
     menu(pg,'DEC','Eliminar archivo'); pg.locator('.as-wrap button',has_text='Eliminar').last.click(); pg.wait_for_timeout(700)
     ok(docstate(pg,'DEC')=='Pendiente' and doclabels(pg).count('DEC')==1 and 'Documento eliminado' in pg.locator('.list').inner_text(),'5) DEC eliminado: el documento sigue en la lista como pendiente (requerido)')
@@ -143,6 +150,14 @@ try:
     ok('BODEGA TEPIC' in pg.locator('.op-form [data-pk="yardId"]').inner_text() and 'agregado al catálogo' in toast(pg),'patio nuevo escrito en el selector: se agrega al catálogo de patios e instalaciones de carga')
     pg.fill('.op-form [name=scheduledDate]',T1); pg.fill('.op-form [name=scheduledTime]','11:00'); submit(pg); pg.wait_for_selector('.fc-detail'); pg.wait_for_timeout(400); id2=pg.url.split('/llenos/')[1]
     ok(doclabels(pg)==['Pedimento','DODA','Cita de recinto portuario'] and docstate(pg,'Cita')=='No requerido' and 'Fuera de puerto' in pg.locator('.fc-hero').inner_text() and 'BODEGA TEPIC' in pg.locator('.fc-hero').inner_text(),'8-9) carga fuera de puerto: sin DEC; cita «cuando aplique» (no requerida)'); shot(pg,'10_fuera')
+    pg.locator('[data-a="edit"]').first.click(); form(pg); pg.locator('.op-form [data-loc="port"]').click(); pg.wait_for_timeout(200)
+    pg.locator('.op-form [data-pk="terminalId"]').click(); pg.wait_for_selector('.picker'); pg.locator('.picker .pk-row',has_text='Contecon').first.click(); pg.wait_for_timeout(300); submit(pg); pg.wait_for_timeout(500)
+    docrow(pg,'DEC').locator('input[data-up]').set_input_files(os.path.join(FD,'DEC.png')); pg.wait_for_timeout(1800)
+    pg.locator('[data-a="edit"]').first.click(); form(pg); pg.locator('.op-form [data-loc="offport"]').click(); pg.wait_for_timeout(200)
+    pg.locator('.op-form [data-pk="yardId"]').click(); pg.wait_for_selector('.picker'); pg.locator('.picker .pk-row',has_text='BODEGA TEPIC').first.click(); pg.wait_for_timeout(300); submit(pg); pg.wait_for_timeout(500)
+    ok(docstate(pg,'DEC')=='Adjuntado' and 'opcional' in docrow(pg,'DEC').locator('.fc-dst').inner_text(),'una carga que vuelve a fuera de puerto conserva su DEC adjuntado como opcional')
+    menu(pg,'DEC','Eliminar archivo'); pg.locator('.as-wrap button',has_text='Eliminar').last.click(); pg.wait_for_timeout(700)
+    ok(doclabels(pg)==['Pedimento','DODA','Cita de recinto portuario'] and docstate(pg,'Cita')=='No requerido' and pg.locator('[data-up]').count()==3,'al quitar el archivo de ese DEC fuera de puerto, el DEC desaparece (no queda «Subir DEC»)')
     # 10. Cambiar la primera de dentro a fuera sin perder el DEC
     pg.goto(BASE+'#/operacion/logistica/llenos/'+id1); pg.wait_for_selector('.fc-detail'); pg.wait_for_timeout(400)
     pg.locator('[data-a="edit"]').first.click(); form(pg); pg.locator('.op-form [data-loc="offport"]').click(); pg.wait_for_timeout(200)
@@ -161,9 +176,14 @@ try:
     pg.goto(BASE+'#/operacion/logistica/llenos'); pg.wait_for_selector('.fc-page'); pg.wait_for_timeout(500)
     tiles=pg.locator('[data-tiles]').inner_text()
     ok(re.search(r'Hoy\s*0',tiles) and re.search(r'Mañana\s*1',tiles) and re.search(r'Doc\. pendiente\s*1',tiles) and re.search(r'Listas\s*1',tiles),'indicadores: hoy 0, mañana 1, 1 pendiente de documentación, 1 lista')
+    pg.locator('[data-tile="tomorrow"]').click(); pg.wait_for_timeout(400)
+    ok(pg.locator('[data-preset="upcoming"].on').count()==1 and [x.inner_text().split('\n')[0] for x in pg.locator('.fc-list .fc-card').all()]==['TGHU7654321'],'«Mañana» abre las cargas abiertas de mañana (el número y la lista coinciden)')
+    pg.locator('[data-f="range"]').click(); pg.wait_for_selector('.asheet'); pg.get_by_role('button',name='Todas las fechas').click(); pg.wait_for_timeout(300)
     pg.locator('[data-view="week"]').click(); pg.wait_for_timeout(300)
-    wk=pg.locator('.fc-week').inner_text()
-    ok('TGHU7654321' in wk and ('MSCU1234567' in wk or True),'22) pizarra semanal: la carga de mañana aparece en su día'); shot(pg,'11_semana')
+    wk0=pg.locator('.fc-week').inner_text(); shot(pg,'11_semana'); pg.locator('[data-cal="next"]').click(); pg.wait_for_timeout(300); wk1=pg.locator('.fc-week').inner_text(); pg.locator('[data-cal="today"]').click(); pg.wait_for_timeout(300)
+    we=today+datetime.timedelta(days=6-today.weekday()); d1=today+datetime.timedelta(days=1); d3=today+datetime.timedelta(days=3)
+    wof=lambda d: wk0 if d<=we else wk1
+    ok('TGHU7654321' in wof(d1) and 'TGHU7654321' not in (wk1 if d1<=we else wk0) and 'MSCU1234567' in wof(d3),'22) pizarra semanal: cada carga aparece en la semana de su fecha (mañana y la reprogramada)')
     pg.locator('[data-view="month"]').click(); pg.wait_for_timeout(300)
     dots=pg.locator('.fc-day .fc-dots i').count(); sel=pg.locator('.fc-day.sel').count()
     ok(dots>=2 and sel==1,'pizarra mensual: puntos en los días con carga y día seleccionado'); shot(pg,'12_mes')
@@ -201,14 +221,28 @@ try:
     # Modo consulta: sin controles de captura
     pg.evaluate("async()=>{const a=await import('./src/services/access.js'); a.setReadOnly(true);}"); pg.goto(BASE+'#/operacion/logistica/llenos'); pg.wait_for_timeout(400); pg.goto(BASE+'#/operacion/logistica/llenos/'+id1); pg.wait_for_selector('.fc-detail'); pg.wait_for_timeout(500)
     ok(pg.locator('.fc-up:visible').count()==0 and pg.locator('.fc-add:visible').count()==0 and pg.locator('.ec-acts:visible').count()==0 and pg.locator('[data-a="preview"]:visible').count()==1,'modo consulta: sin subir, editar ni asignar; el expediente sí se puede ver'); shot(pg,'14_consulta')
+    docrow(pg,'Pedimento').locator('[data-dact]').click(); pg.wait_for_selector('.asheet'); pg.wait_for_timeout(200)
+    acts=[x.inner_text().strip() for x in pg.locator('.as-wrap button').all()]
+    ok('Ver' in acts and 'Descargar / compartir' in acts and not any(a in acts for a in ['Reemplazar archivo','Eliminar archivo','Marcar como no requerido','Marcar como requerido']),'modo consulta: el menú de un documento solo ofrece Ver y Descargar '+str(acts))
+    pg.get_by_role('button',name='Cancelar').click(); pg.wait_for_timeout(300)
     pg.evaluate("async()=>{const a=await import('./src/services/access.js'); a.setReadOnly(false);}")
+    # Una carga cerrada cuya terminal se borró del catálogo se puede seguir corrigiendo
+    r4=pg.evaluate("""async()=>{const f=await import('./src/services/fulls.js'); const c=await import('./src/services/catalogs.js');
+      const t=await c.save('terminals',{name:'TERMINAL TEMPORAL'}); const out={};
+      const {load}=await f.create({containerNumber:'CMAU3334445',weightKg:'15000',locationType:'port',terminalId:t.id,scheduledDate:'2026-09-01',scheduledTime:'08:00'});
+      await f.setStatus(load.id,'loaded'); await c.remove('terminals',t.id);
+      const u=await f.update(load.id,{weightKg:'15500'}); out.edit=u.errors?JSON.stringify(u.errors):f.byId(load.id).weightKg;
+      try{await f.assign(load.id,{vehicleId:null,operatorId:null,trailerId:null}); out.assign='ok'}catch(e){out.assign=e.message}
+      const v=await f.update(load.id,{terminalId:'t_inexistente'}); out.bad=v.errors?v.errors.transport:'aceptó';
+      await f.setStatus(load.id,'cancelled'); await f.remove(load.id); return out}""")
+    ok(r4['edit']==15500 and r4['assign']=='ok' and r4['bad']=='La terminal ya no está en el catálogo.','carga cerrada con su terminal borrada del catálogo: se puede corregir y asignar; una terminal nueva inexistente sí se rechaza '+str(r4))
     # 26. Logística y Control de vacíos siguen funcionando
     pg.goto(BASE+'#/operacion/logistica'); pg.wait_for_selector('.lg-page'); pg.wait_for_timeout(500)
     ok(pg.locator('.lg-group,.empty').count()>=1 and 'Cargas hoy' in pg.locator('.fc-entry').inner_text() and pg.locator('.ec-entry').first.count()==1,'26) Logística abre con sus unidades y las dos entradas (vacíos y llenos)')
     pg.goto(BASE+'#/operacion/logistica/vacios'); pg.wait_for_selector('.ec-page'); pg.wait_for_timeout(400)
     ok(pg.locator('h1.title').inner_text()=='Control de vacíos' and pg.locator('[data-tiles] .tile').count()==4,'26) Control de vacíos sigue funcionando (independiente de Control de llenos)')
     pg.goto(BASE+'#/operacion'); pg.wait_for_timeout(500)
-    ok('Llenos hoy' in pg.locator('.mod-card',has_text='Logística').inner_text() or True,'Operación: resumen de Logística')
+    ok(pg.locator('.mod-card',has_text='Logística').count()>=1 and 'Llenos hoy' not in pg.locator('.mod-card',has_text='Logística').first.inner_text(),'Operación: sin cargas para hoy (la de hoy se reprogramó) el resumen ya no muestra «Llenos hoy»')
     # Escritorio: pizarra mensual con fichas en las celdas
     pg.set_viewport_size({'width':1440,'height':900}); pg.goto(BASE+'#/operacion/logistica/llenos'); pg.wait_for_selector('.fc-page'); pg.wait_for_timeout(500)
     ok(pg.locator('[data-view="month"].on').count()==1 and pg.locator('.fc-ev').count()>=2,'computadora: la pizarra abre en vista de mes con las cargas dentro de cada día'); shot(pg,'15_escritorio')

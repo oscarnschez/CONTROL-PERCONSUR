@@ -164,6 +164,14 @@ export function monthGrid(date) {
   return weeks;
 }
 export const monthOf = (date) => String(date).slice(0, 7);
+/* Rango de fechas de los filtros rápidos; ambos extremos se incluyen («Este mes» termina el último día del mes) */
+export function rangeDates(range, today) {
+  if (range === 'today') return { from: today, to: today };
+  if (range === 'tomorrow') { const d = addDays(today, 1); return { from: d, to: d }; }
+  if (range === 'week') return { from: today, to: addDays(today, 6) };
+  if (range === 'month') { const first = monthOf(today) + '-01'; return { from: first, to: addDays(monthOf(addDays(first, 31)) + '-01', -1) }; }
+  return {};
+}
 export const whenKey = (r) => `${r.scheduledDate || '9999-99-99'} ${r.scheduledTime || '99:99'}`;
 export const sortByWhen = (list) => [...list].sort((a, b) => whenKey(a).localeCompare(whenKey(b)) || (a.createdAt || 0) - (b.createdAt || 0));
 /* Cargas por día: Map('AAAA-MM-DD' → [cargas ordenadas por hora]) */

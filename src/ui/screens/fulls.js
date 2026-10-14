@@ -20,7 +20,7 @@ import { dossierPlan, buildDossier, HEAVY_BYTES } from '../../services/fullDossi
 import { shareFile, downloadBlob, openBlob, isIOS } from '../../services/share.js';
 import {
   LOAD_STATUSES, loadStatus, isOpenLoad, LOCATIONS, locationLabel, placeLabel, DOC_TYPES, docType, docLabel, docState, DOC_STATE_LABELS, hasFile,
-  docSummaryText, slotTypes, cleanContainer, isContainer, dayStr, hmStr, addDays, weekDays, monthGrid, monthOf, byDay, sortByWhen, isLate, summary,
+  docSummaryText, slotTypes, cleanContainer, isContainer, dayStr, hmStr, addDays, weekDays, monthGrid, monthOf, rangeDates, byDay, sortByWhen, isLate, summary,
   filterLoads, eventLabel, weightText, parseWeight,
 } from '../../domain/fulls/fulls.js';
 import { fmtDate, todayStr } from '../../domain/operators/balance.js';
@@ -28,6 +28,7 @@ import { esc, fmtSize } from '../../domain/shared/format.js';
 import { icon, trailerIcon } from '../components/icons.js';
 import { openSheet, actionSheet, confirmDestructive, busy } from '../components/sheet.js';
 import { openPicker } from '../components/picker.js';
+import { isReadOnly } from '../../services/access.js';
 import { toast } from '../components/toast.js';
 import { formSheet, fail } from './operatorForms.js';
 import { whenText } from './empties.js';
@@ -93,14 +94,7 @@ export async function fullsScreen() {
   </div>`);
   const root = s.el;
   const base = () => filterLoads(fc.all(), { text: f.text, location: f.location, terminalId: f.terminalId, yardId: f.yardId, vehicleId: f.vehicleId, operatorId: f.operatorId, status: f.status, ...rangeOf() }, fc.view);
-  function rangeOf() {
-    const today = todayStr();
-    if (f.range === 'today') return { from: today, to: today };
-    if (f.range === 'tomorrow') return { from: addDays(today, 1), to: addDays(today, 1) };
-    if (f.range === 'week') return { from: today, to: addDays(today, 6) };
-    if (f.range === 'month') return { from: today.slice(0, 7) + '-01', to: addDays(today.slice(0, 7) + '-01', 40).slice(0, 7) + '-01' };
-    return {};
-  }
+  const rangeOf = () => rangeDates(f.range, todayStr());
   function listOf(all) {
     const today = todayStr();
     if (f.range === 'late') all = all.filter((r) => isLate(r));
@@ -143,7 +137,7 @@ export async function fullsScreen() {
   }
   function draw() {
     const all = fc.all(), sm = summary(all, fc.docsOf);
-    const tiles = [['today', 'Hoy', sm.today, { preset: 'today' }], ['tomorrow', 'Mañana', sm.tomorrow, { preset: 'all', range: 'tomorrow' }], ['week', 'Esta semana', sm.week, { preset: 'upcoming', range: 'week' }],
+    const tiles = [['today', 'Hoy', sm.today, { preset: 'today' }], ['tomorrow', 'Mañana', sm.tomorrow, { preset: 'upcoming', range: 'tomorrow' }], ['week', 'Esta semana', sm.week, { preset: 'upcoming', range: 'week' }],
       ['docs', 'Doc. pendiente', sm.docsPending, { preset: 'docs_pending' }], ['ready', 'Listas', sm.ready, { preset: 'all', status: 'ready' }], ['done', 'Finalizadas', sm.done, { preset: 'history' }]];
     root.querySelector('[data-tiles]').innerHTML = tiles.map(([k, l, c]) => `<button type="button" class="tile ec-tile fc-tile" data-tile="${k}" aria-label="${esc(l)}: ${c}"><small>${l}</small><b>${c}</b></button>`).join('');
     root.querySelector('[data-tiles]').dataset.map = JSON.stringify(Object.fromEntries(tiles.map(([k, , , fl]) => [k, fl])));
@@ -227,7 +221,7 @@ export async function fullDetailScreen({ id }) {
         <span class="att-tx"><b>${esc(docLabel(d))}${d.docType === 'otro' ? ' <small class="fc-extra">adicional</small>' : ''}</b>
           <small><span class="fc-dst ${st}">${DOC_STATE_LABELS[st]}${st === 'attached' && !d.required ? ' · opcional' : ''}</span>${ok ? `${esc(d.name)} · ${esc(meta)}` : err ? `<span class="td-errt">${icon.alert}No se pudo procesar «${esc(d.name)}»</span>` : gone.has(d.id) ? `<span class="td-errt">${icon.alert}Archivo no disponible en este dispositivo</span>` : d.required ? 'Falta adjuntar' : 'No se pide para esta carga'}</small>
           ${!ok && !err && !gone.has(d.id) ? `<span class="fc-upwrap"><label class="btn-secondary sm fc-up" data-w>${icon.upload}<span>Subir ${esc(t.short)}</span><input type="file" accept="${fc.ACCEPT}" hidden data-up="${esc(d.id)}"></label></span>` : ''}</span>
-        <span class="att-b"><button type="button" class="icon-btn" data-dact="more"${ok || err || gone.has(d.id) ? '' : ' data-w'} aria-label="Acciones de ${esc(docLabel(d))}">${icon.more}</button></span></li>`;
+        <span class="att-b"><button type="button" class="icon-btn" data-dact="more"${ok ? '' : ' data-w'} aria-label="Acciones de ${esc(docLabel(d))}">${icon.more}</button></span></li>`;
     };
     root.innerHTML = `
       <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Control de llenos</span></button>
@@ -308,8 +302,10 @@ export async function fullDetailScreen({ id }) {
     const li = b.closest('[data-doc]'), d = li && fc.docById(li.dataset.doc); if (!d) return;
     const ok = hasFile(d), err = d.fileStatus === 'error', t = docType(d.docType);
     const extras = fc.docsOf(id).filter((x) => x.docType === 'otro'), i = extras.findIndex((x) => x.id === d.id);
-    const v = await actionSheet({ title: docLabel(d), message: ok ? `${d.name} · ${DOC_STATE_LABELS[docState(d)]}` : DOC_STATE_LABELS[docState(d)], actions: [
-      ...(ok ? [{ label: 'Ver', value: 'view', icon: icon.eye }, { label: 'Descargar / compartir', value: 'download', icon: icon.share }, { label: 'Reemplazar archivo', value: 'replace', icon: icon.refresh }] : []),
+    const ro = isReadOnly(); if (ro && !ok) return;
+    const read = [{ label: 'Ver', value: 'view', icon: icon.eye }, { label: 'Descargar / compartir', value: 'download', icon: icon.share }];
+    const v = await actionSheet({ title: docLabel(d), message: ok ? `${d.name} · ${DOC_STATE_LABELS[docState(d)]}` : DOC_STATE_LABELS[docState(d)], actions: ro ? read : [
+      ...(ok ? [...read, { label: 'Reemplazar archivo', value: 'replace', icon: icon.refresh }] : []),
       ...(err ? [{ label: 'Reintentar', value: 'retry', icon: icon.refresh }] : []),
       ...(!ok && !err ? [{ label: `Subir ${t.short}`, value: 'upload', icon: icon.upload }] : []),
       { label: d.required ? 'Marcar como no requerido' : 'Marcar como requerido', value: 'required', icon: d.required ? icon.minus : icon.check },

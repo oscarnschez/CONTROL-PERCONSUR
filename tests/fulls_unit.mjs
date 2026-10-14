@@ -2,7 +2,7 @@
    pizarra (semanas y mes), filtros, indicadores, expediente (orden y nombre), respaldo manipulado y sincronización */
 import {
   LOAD_STATUSES, loadStatus, isOpenLoad, slotTypes, defaultRequired, reconcileDocs, docState, docSummary, docSummaryText, sortDocs, checkLoad, parseWeight,
-  addDays, weekStart, weekDays, monthGrid, byDay, isLate, summary, filterLoads, eventLabel, dossierDocs, dossierFilename, weightText, sanitizeLoad, sanitizeDoc, sanitizeEvent,
+  addDays, weekStart, weekDays, monthGrid, rangeDates, byDay, isLate, summary, filterLoads, eventLabel, dossierDocs, dossierFilename, weightText, sanitizeLoad, sanitizeDoc, sanitizeEvent,
 } from '../src/domain/fulls/fulls.js';
 import { SYNC_STORES } from '../src/domain/sync/sync.js';
 const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
@@ -58,6 +58,9 @@ ok(!isLate({ status: 'scheduled', scheduledDate: '2026-10-15', scheduledTime: '0
 ok(addDays('2026-10-31', 1) === '2026-11-01' && weekStart('2026-10-15') === '2026-10-12' && weekDays('2026-10-18').join(',') === '2026-10-12,2026-10-13,2026-10-14,2026-10-15,2026-10-16,2026-10-17,2026-10-18', 'semanas de lunes a domingo');
 const g = monthGrid('2026-10-15');
 ok(g.length === 5 && g[0][0] === '2026-09-28' && g[4][6] === '2026-11-01' && monthGrid('2026-02-10').length === 5 && monthGrid('2026-02-10')[0][0] === '2026-01-26' && monthGrid('2026-02-10')[4][6] === '2026-03-01' && monthGrid('2026-06-10').length === 5, 'cuadrícula del mes con los días de relleno (del lunes anterior al domingo posterior)');
+const rd = (r, t) => { const x = rangeDates(r, t); return `${x.from}..${x.to}`; };
+ok(rd('month', '2026-10-14') === '2026-10-01..2026-10-31' && rd('month', '2026-12-31') === '2026-12-01..2026-12-31' && rd('month', '2028-02-10') === '2028-02-01..2028-02-29' && rd('month', '2026-01-31') === '2026-01-01..2026-01-31', '«Este mes» va del día 1 al último día del mes (no incluye el 1 del mes siguiente)');
+ok(rd('tomorrow', '2026-10-31') === '2026-11-01..2026-11-01' && rd('week', '2026-10-28') === '2026-10-28..2026-11-03' && rd('today', '2026-10-14') === '2026-10-14..2026-10-14' && JSON.stringify(rangeDates('all', '2026-10-14')) === '{}' && JSON.stringify(rangeDates('late', '2026-10-14')) === '{}', 'rangos de hoy, mañana y próximos 7 días; «todas» y «vencidas» no limitan fechas');
 const loads = [
   { id: 'a', containerNumber: 'MSCU1234567', status: 'scheduled', scheduledDate: '2026-10-15', scheduledTime: '14:00', locationType: 'port', terminalId: 't1', createdAt: 1 },
   { id: 'b', containerNumber: 'TGHU7654321', status: 'ready', scheduledDate: '2026-10-15', scheduledTime: '09:30', locationType: 'offport', yardId: 'y1', vehicleId: 'u1', createdAt: 2 },

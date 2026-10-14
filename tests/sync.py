@@ -134,13 +134,17 @@ try:
     bp.goto(BASE+'#/ajustes/compartir'); bp.wait_for_selector('.sync-set')
     # El capturista cambia algo y borra un archivo; la consulta lo recibe
     a.evaluate("async(ids)=>{const l=await import('./src/services/logistics.js'); await l.setStatus(ids.op,'empty_transit'); const m=await import('./src/services/media.js'); await m.remove(ids.prev)}", ids)
+    a.evaluate("async()=>{const f=await import('./src/services/fulls.js'); const c=await import('./src/services/catalogs.js'); const t=c.listAll('terminals')[0]; await f.create({containerNumber:'MSCU1112223',weightKg:'20000',locationType:'port',terminalId:t.id,scheduledDate:'2026-10-20',scheduledTime:'10:00'})}")
     a.goto(BASE+'#/ajustes/compartir'); a.wait_for_timeout(300); a.locator('[data-pub]').click()
     sa=wait_sync(a, lambda s: not s['dirty'] and not s['phase'])
     ok(('f:'+ids['prev']) not in kv(),'un archivo borrado por el capturista también se borra de la nube')
+    bp.evaluate("()=>{window.__fc=0; addEventListener('fulls:change',()=>{window.__fc++})}")
     bp.locator('[data-pull]').click()
     sb=wait_sync(bp, lambda s: s['ver']==sa['ver'] and not s['phase'])
     got=bp.evaluate("async(ids)=>{const m=await import('./src/services/media.js'); const l=await import('./src/services/logistics.js'); return {prev:!!(await m.getBlob(ids.prev)), st:l.allRecords().find(o=>o.id===ids.op).status}}", ids)
     ok(got['st']=='empty_transit' and not got['prev'],'«Revisar ahora»: la consulta recibe el cambio y quita el archivo borrado: '+json.dumps(got))
+    fcx=bp.evaluate("async()=>{const f=await import('./src/services/fulls.js'); return {n:window.__fc, has:f.all().some(r=>r.containerNumber==='MSCU1112223')}}")
+    ok(fcx['has'] and fcx['n']>0,'Control de llenos: la consulta recibe la carga nueva y sus pantallas reciben el aviso de cambio: '+json.dumps(fcx))
 
     # ===== C: el capturista cambia de teléfono (otra instalación con la misma clave) =====
     cc=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block'); setup_ctx(cc); c=cc.new_page(); watch(c); login(c)

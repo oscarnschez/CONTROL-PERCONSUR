@@ -144,6 +144,8 @@ try:
     ok(pg.locator(f'.mon-row[data-u="{ids["u12"]}"] .mon-lnk').count()==1,'lista: indicador «Rastreo activo»')
     # Portal del cliente
     cp=ctx.new_page(); watch(cp); cp.goto(url); cp.wait_for_timeout(4500)
+    fav=cp.locator('link[rel=icon]').get_attribute('href'); fico=os.path.join(APP,fav.split('https://app.test/')[-1])
+    ok(cp.locator('link[rel=icon]').count()==1 and fav=='https://app.test/assets/icons/favicon.ico' and open(fico,'rb').read(4)==b'\x00\x00\x01\x00','portal: favicon .ico de PERCONSUR servido desde la app ('+fav+')')
     t=cp.locator('#portal').inner_text()
     ok('PERCONSUR' in t and 'En camino al destino' in t and 'Manzanillo' in t and 'Guadalajara' in t and 'CEDIS Guadalajara' in t,'portal: identidad PERCONSUR, estado, origen y destino')
     w=ids['oper'].split(); corto=w[0]+' '+(w[-2] if len(w)>=4 else w[1])

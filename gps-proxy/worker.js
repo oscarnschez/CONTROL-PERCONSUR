@@ -500,7 +500,7 @@ export function portalHTML(app, token) {
 <meta property="og:title" content="Rastreo de tu envío · PERCONSUR"><meta property="og:description" content="Consulta la ubicación y el estado de tu envío.">
 <meta property="og:image" content="${a}assets/icons/icon-512.png">
 <meta name="color-scheme" content="light dark"><meta name="theme-color" content="#354FA3">
-<link rel="icon" type="image/png" href="${a}assets/icons/favicon-32.png"><link rel="apple-touch-icon" href="${a}assets/icons/apple-touch-icon.png">
+<link rel="icon" href="${a}assets/icons/favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128 256x256"><link rel="apple-touch-icon" href="${a}assets/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
 <link rel="stylesheet" href="${a}vendor/fonts/archivo.css"><link rel="stylesheet" href="${a}vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="${a}styles/tokens.css"><link rel="stylesheet" href="${a}styles/maps.css"><link rel="stylesheet" href="${a}styles/portal.css">
 </head><body class="pt-body">

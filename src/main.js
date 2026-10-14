@@ -42,6 +42,7 @@ import { applyTheme } from './services/theme.js';
 import { registerSW, onUpdateReady, applyUpdate, warmCache } from './services/pwa.js';
 import { tryLibs } from './services/libs.js';
 import { icon } from './ui/components/icons.js';
+import { closeSplash } from './ui/components/opening.js';
 import { initScrollHints } from './ui/components/scrollHints.js';
 import { copyrightShort } from './config/legal.js';
 import { toast } from './ui/components/toast.js';
@@ -214,12 +215,11 @@ async function boot() {
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
     else if (updated) toast(`PERCONSUR se actualizó a la versión ${APP_VERSION}`, { type: 'info', ms: 5000 });
     tryLibs(['qrcode']);
-    /* Si se viene de la pantalla de acceso ya no hay splash: está la transición de marca, y el aviso de borrador
-       pendiente espera a que termine */
+    /* Con sesión, la pantalla de carga se abre sobre el panel (ui/components/opening.js). Si se viene de la pantalla de
+       acceso ya no hay pantalla de carga: está la transición de marca. El aviso de borrador pendiente espera a ambas. */
     const intro = document.querySelector('.brand-intro');
     const afterIntro = () => (intro && intro.isConnected ? new Promise((r) => window.addEventListener('brandintro:end', r, { once: true })) : Promise.resolve());
-    const wait = splash ? Math.max(0, 550 - (performance.now() - t0)) : 0;
-    setTimeout(() => { if (splash) { splash.classList.add('out'); setTimeout(() => splash.remove(), 300); } afterIntro().then(offerRecovery); }, wait);
+    closeSplash({ notBefore: t0 + 550 }).then(afterIntro).then(offerRecovery);
   } catch (e) {
     console.error(e);
     const text = 'No se pudo abrir el almacenamiento del dispositivo. Si usas navegación privada, ábrela en una pestaña normal.';

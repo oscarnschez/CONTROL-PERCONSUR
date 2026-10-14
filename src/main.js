@@ -215,7 +215,7 @@ async function boot() {
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
     else if (updated) toast(`PERCONSUR se actualizó a la versión ${APP_VERSION}`, { type: 'info', ms: 5000 });
     tryLibs(['qrcode']);
-    /* Con sesión, la pantalla de carga se abre sobre el panel (ui/components/opening.js). Si se viene de la pantalla de
+    /* Con sesión, la pantalla de carga se retira sobre el panel (ui/components/opening.js). Si se viene de la pantalla de
        acceso ya no hay pantalla de carga: está la transición de marca. El aviso de borrador pendiente espera a ambas. */
     const intro = document.querySelector('.brand-intro');
     const afterIntro = () => (intro && intro.isConnected ? new Promise((r) => window.addEventListener('brandintro:end', r, { once: true })) : Promise.resolve());

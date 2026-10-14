@@ -10,7 +10,7 @@
  *   - Bloqueo progresivo tras 5 intentos fallidos (30 s, 1 min, 2 min… hasta 15 min), aunque se recargue.
  *   - La contraseña nunca se guarda: el campo se vacía al verificar y no se registra en consola.
  * Sesión: dura mientras la app sigue abierta (sessionStorage) y como máximo 12 horas.
- * Al abrir la app, la pantalla de carga se abre como puertas de contenedor sobre el acceso (ui/components/opening.js).
+ * Al abrir la app, la pantalla de carga muestra la marca mientras carga y se desvanece sobre el acceso (ui/components/opening.js).
  * Tras verificar el acceso se muestra la transición de marca (ui/components/brandIntro.js) mientras la app arranca.
  *
  * Límite honesto: sin servidor, quien tenga acceso técnico al dispositivo podría evitar esta pantalla.
@@ -86,7 +86,7 @@ function registerFail() {
 const lockedFor = () => Math.max(0, guard().until - Date.now());
 
 /* ===== Pantalla de acceso ===== */
-/* Al abrir la app, las puertas de la pantalla de carga se abren sobre el acceso (ver ui/components/opening.js) */
+/* Al abrir la app, la pantalla de carga se retira sobre el acceso (ver ui/components/opening.js) */
 function hideSplash() { closeSplash(); }
 function launchApp() {
   return import('../main.js');

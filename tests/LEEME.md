@@ -9,7 +9,7 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 
 - `python3 e2e.py` — recorrido completo emulando iPhone: migración, Puerto, Campo, catálogos, respaldo, modo oscuro. Capturas en `shots/`.
 - `python3 auth.py` — acceso: la app no carga antes de iniciar sesión, contraseña incorrecta (sin transición), transición de marca al entrar (logotipo, duración, no se repite al recargar ni al navegar, «reducir movimiento»), sesión, bloqueo por intentos, cerrar sesión.
-- `python3 opening.py` — apertura de la app (no requiere credenciales): puertas de contenedor con la placa de PERCONSUR mientras carga, apertura sobre el acceso o sobre el panel, una vez por sesión (al recargar solo se desvanece), un toque la adelanta, «reducir movimiento», modo oscuro y computadora.
+- `python3 opening.py` — apertura de la app (no requiere credenciales): logotipo, nombre y línea de carga sobre el fondo de la app con la razón social al pie; al estar lista, la línea se completa y la pantalla se retira sobre el acceso o sobre el panel, una vez por sesión (al recargar solo se desvanece), un toque la adelanta, «reducir movimiento», modo oscuro y computadora.
 - `python3 operators.py` — módulo Operadores: fórmula del balance con los ejemplos oficiales, comisión ampliada, validaciones, resumen, CSV, respaldo.
 - `python3 v140.py` — versión 1.4: navegación, perfil, remolques por división, combustible, Excel y respaldo.
 - `node fuel_unit.mjs` — cálculos de combustible (sin navegador).

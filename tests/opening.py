@@ -1,7 +1,7 @@
 """Apertura de la app (pantalla de carga de index.html), sobria: al abrir la PWA, el logotipo y el nombre sobre el fondo de
 la app con una línea fina de carga y la razón social al pie; al estar lista, la línea se completa y la pantalla se retira
 sobre el acceso (o sobre el panel si ya hay sesión). Una vez por sesión (al recargar solo se desvanece), tocar la adelanta,
-«reducir movimiento» la deja quieta, modo oscuro y computadora. No requiere credenciales."""
+«reducir movimiento» la deja quieta, modo oscuro, computadora y el favicon (.ico). No requiere credenciales."""
 import subprocess, time, sys, os
 from playwright.sync_api import sync_playwright
 HERE=os.path.dirname(os.path.abspath(__file__)); APP=os.path.abspath(os.path.join(HERE,'..')); SH='shots'; os.makedirs(SH,exist_ok=True)
@@ -37,6 +37,9 @@ try:
     ok(st['word']=='PERCONSUR' and st['legal']=='PERCONSUR DE NAYARIT GROUP' and st['mark'] and st['line']==1 and st['lineHidden']=='true' and st['doors']==0,'apertura sobria: logotipo, PERCONSUR, línea de carga (decorativa para el lector de pantalla) y razón social al pie')
     ok(st['role']=='status' and st['label']=='Abriendo PERCONSUR' and not st['exit'] and not st['warm'] and st['anim']=='spRise' and st['load']=='spLoad','mientras carga: el logotipo y el nombre aparecen con un desvanecido breve y la línea avanza')
     ok(st['bg']=='rgb(244, 245, 248)','el fondo es el de la app y opaco hasta la salida: el acceso no se asoma'); shot(pg,'01_cargando')
+    hrefs=pg.evaluate("()=>[...document.querySelectorAll('link[rel=icon]')].map(l=>l.getAttribute('href'))")
+    ico=pg.request.get(BASE.replace('index.html','assets/icons/favicon.ico')); body=ico.body()
+    ok(hrefs==['./assets/icons/favicon.ico'] and ico.ok and body[:4]==b'\x00\x00\x01\x00' and body[4]+body[5]*256==7,'favicon: el .ico de PERCONSUR con 7 tamaños (16 a 256 px) '+str(hrefs))
     pg.wait_for_selector('#splash.sp-exit',timeout=8000)
     pe=pg.evaluate("getComputedStyle(document.getElementById('splash')).pointerEvents"); pg.wait_for_timeout(200); shot(pg,'02_saliendo')
     t=gone(pg)

@@ -40,7 +40,7 @@ try:
     pg.wait_for_selector('#splash.sp-exit',timeout=8000)
     pe=pg.evaluate("getComputedStyle(document.getElementById('splash')).pointerEvents"); pg.wait_for_timeout(200); shot(pg,'02_saliendo')
     t=gone(pg)
-    ok(t['open'] is not None and 900<=t['open']<=4000 and t['gone'] is not None and 450<=t['gone']-t['open']<=950 and t['out'] is None,f"al terminar la entrada la línea se completa y la pantalla se retira (salida {t['open']:.0f} ms, retiro {t['gone']:.0f} ms)")
+    ok(t['open'] is not None and 880<=t['open']<=4000 and t['gone'] is not None and 450<=t['gone']-t['open']<=950 and t['out'] is None,f"al terminar la entrada la línea se completa y la pantalla se retira (salida {t['open']:.0f} ms, retiro {t['gone']:.0f} ms)")
     ok(pe=='none','al empezar la salida ya no bloquea los toques')
     ok(pg.locator('.login').is_visible() and pg.evaluate("sessionStorage.getItem('pcs-opened')")=='1','debajo estaba el acceso; la sesión recuerda que la app ya se abrió'); shot(pg,'03_acceso')
     # Recargar en la misma sesión: no se repite

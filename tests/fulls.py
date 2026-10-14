@@ -109,12 +109,15 @@ try:
     ok(docstate(pg,'DEC')=='Adjuntado' and 'Documentación completa (4 de 4)' in pg.locator('.fc-docst').inner_text(),'con los cuatro requeridos adjuntados: completa (4 de 4)'); pg.screenshot(path=f'{SH}/fl_05_docs.png',full_page=True)
     # 16-17. Vista previa y orden del expediente
     pg.locator('[data-a="preview"]').click(); pg.wait_for_selector('.fc-xp'); pg.wait_for_timeout(500); shot(pg,'06_preview')
+    pg.evaluate("()=>{document.querySelector('.fc-xp').dataset.keep='1'}")
     order=lambda: [x.inner_text() for x in pg.locator('.fc-xprow .att-tx b').all()]
     ok(order()==['Pedimento','DODA','Cita de recinto portuario','DEC','Carta porte.pdf','Foto sello.jpg'] and '10 páginas' in pg.locator('.bsheet .sheet-lead').inner_text() and pg.locator('.td-sec').count()==6,'17) vista previa: documentos en orden (pedimento, DODA, cita, DEC, adicionales), 10 páginas y 6 secciones')
     pg.locator('.fc-xprow',has_text='Foto sello.jpg').locator('[data-mv="-1"]').click(); pg.wait_for_selector('.fc-xp'); pg.wait_for_timeout(500)
     ok(order()[4:]==['Foto sello.jpg','Carta porte.pdf'],'16) reorganizar: la foto sube antes de la carta porte')
+    ok(pg.evaluate("()=>{const a=document.activeElement, li=a&&a.closest('[data-xp]'); return !!(li&&a.matches('[data-mv]')&&li.innerText.includes('Foto sello'))}"),'al reordenar, el foco sigue en las flechas del documento que se movió')
     pg.locator('.fc-xprow',has_text='Carta porte.pdf').locator('[data-inc]').click(); pg.wait_for_selector('.fc-xp'); pg.wait_for_timeout(500)
     ok(pg.locator('.fc-xprow.off').count()==1 and '8 páginas' in pg.locator('.bsheet .sheet-lead').inner_text() and pg.locator('.td-sec').count()==5,'16) excluir un documento: no cuenta en páginas ni en el contenido final')
+    ok(pg.locator('.fc-xp[data-keep="1"]').count()==1 and pg.locator('.bsheet').count()==1,'la vista previa se actualiza en su lugar: no se cierra ni se vuelve a abrir al reordenar o excluir')
     pg.locator('.bsheet [data-x="back"]').click(); pg.wait_for_timeout(400)
     # 15, 18. Generar PDF combinado
     pg.locator('[data-a="build"]').click(); pg.wait_for_selector('.ok-box',timeout=25000); pg.wait_for_timeout(300); shot(pg,'07_generado')
@@ -211,6 +214,8 @@ try:
     # Catálogo nuevo en Administración
     pg.goto(BASE+'#/catalogos'); pg.wait_for_timeout(500)
     ok(pg.locator('a.row-btn',has_text='Patios e instalaciones de carga').count()==1 and '1' in pg.locator('a.row-btn',has_text='Patios e instalaciones de carga').inner_text(),'Administración → Catálogos: «Patios e instalaciones de carga» con el patio agregado')
+    vq=pg.evaluate("async()=>{const f=await import('./src/services/fulls.js'); const vw=f.viewer(); const all=f.all(); return all.length==2 && all.every(r=>JSON.stringify(vw(r))===JSON.stringify(f.view(r))) && vw(all[0])===vw(all[0])}")
+    ok(vq,'la pizarra resuelve cada carga una vez con los catálogos indexados y obtiene lo mismo que la ficha')
     # Respaldo
     bk=pg.evaluate("""async()=>{const B=await import('./src/services/backup.js'); const f=await B.exportBackup({includeMedia:true}); const info=await B.inspectBackup(f); const d=JSON.parse(await f.text()).data;
       return {lines:info.lines.filter(l=>/llenos/.test(l)), loads:d.fullContainerLoads.length, docs:d.fullContainerDocuments.length, evs:d.fullContainerEvents.length, yards:d.loadingYards.length, files:d.attachments.filter(a=>/^fcl:/.test(a.owner)).length}}""")
@@ -234,8 +239,12 @@ try:
       const u=await f.update(load.id,{weightKg:'15500'}); out.edit=u.errors?JSON.stringify(u.errors):f.byId(load.id).weightKg;
       try{await f.assign(load.id,{vehicleId:null,operatorId:null,trailerId:null}); out.assign='ok'}catch(e){out.assign=e.message}
       const v=await f.update(load.id,{terminalId:'t_inexistente'}); out.bad=v.errors?v.errors.transport:'aceptó';
-      await f.setStatus(load.id,'cancelled'); await f.remove(load.id); return out}""")
+      await f.setStatus(load.id,'cancelled');
+      const m=await import('./src/services/media.js'); const db=await import('./src/services/db.js');
+      await m.saveBlob(new Blob(['x'],{type:'application/pdf'}),{owner:'fcl:'+load.id,kind:'fcl-doc',name:'huerfano.pdf'});
+      await f.remove(load.id); out.left=(await db.byIndex('attachments','owner','fcl:'+load.id)).length; out.docs=f.docsOf(load.id).length; out.gone=!f.byId(load.id); return out}""")
     ok(r4['edit']==15500 and r4['assign']=='ok' and r4['bad']=='La terminal ya no está en el catálogo.','carga cerrada con su terminal borrada del catálogo: se puede corregir y asignar; una terminal nueva inexistente sí se rechaza '+str(r4))
+    ok(r4['left']==0 and r4['docs']==0 and r4['gone'],'al eliminar una carga cancelada se borran sus documentos y todos sus archivos, también los que ningún documento referencia')
     # 26. Logística y Control de vacíos siguen funcionando
     pg.goto(BASE+'#/operacion/logistica'); pg.wait_for_selector('.lg-page'); pg.wait_for_timeout(500)
     ok(pg.locator('.lg-group,.empty').count()>=1 and 'Cargas hoy' in pg.locator('.fc-entry').inner_text() and pg.locator('.ec-entry').first.count()==1,'26) Logística abre con sus unidades y las dos entradas (vacíos y llenos)')

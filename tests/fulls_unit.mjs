@@ -75,6 +75,10 @@ ok(sm.today === 2 && sm.tomorrow === 0 && sm.week === 2 && sm.docsPending === 1 
 const view = (r) => ({ place: r.terminalId === 't1' ? 'Contecon' : r.terminalId === 't2' ? 'SSA' : 'PATIO X', unit: r.vehicleId ? 'U21' : '', placas: '', operator: '', trailer: '', docs: docSummary(docsOf(r.id)) });
 ok(filterLoads(loads, { text: 'contecon' }, view).map((r) => r.id).join() === 'a,d' && filterLoads(loads, { terminalId: 't1', status: 'open' }, view).map((r) => r.id).join() === 'a' && filterLoads(loads, { yardId: 'y1' }, view).map((r) => r.id).join() === 'b', 'filtros por terminal o patio y búsqueda por nombre del lugar');
 ok(filterLoads(loads, { location: 'offport' }, view).map((r) => r.id).join() === 'b' && filterLoads(loads, { docs: 'incomplete' }, view).map((r) => r.id).join() === 'a' && filterLoads(loads, { vehicleId: 'u1' }, view).map((r) => r.id).join() === 'b' && filterLoads(loads, { from: '2026-10-16', to: '2026-10-31' }, view).map((r) => r.id).join() === 'c,d' && filterLoads(loads, { text: 'u21' }, view).map((r) => r.id).join() === 'b', 'filtros por dentro/fuera, estado documental, unidad y rango de fechas; búsqueda por unidad');
+let calls = 0; const counting = (r) => { calls++; return view(r); };
+filterLoads(loads, { status: 'open', terminalId: 't1', from: '2026-10-01' }, counting); const noView = calls; calls = 0;
+const hit = filterLoads(loads, { status: 'open', text: 'contecon' }, counting).map((r) => r.id).join();
+ok(noView === 0 && calls === 2 && hit === 'a', 'filtros sin búsqueda ni filtro documental no resuelven catálogos; con búsqueda, solo las cargas que pasan los demás filtros');
 
 /* Historial y expediente */
 ok(eventLabel({ eventType: 'doc_added', docType: 'pedimento' }) === 'Pedimento añadido' && eventLabel({ eventType: 'doc_added', docType: 'cita' }) === 'Cita de recinto portuario añadida' && eventLabel({ eventType: 'doc_added', docType: 'dec' }) === 'DEC añadido' && eventLabel({ eventType: 'reschedule' }) === 'Reprogramación' && eventLabel({ eventType: 'loaded' }) === 'Carga finalizada', 'etiquetas del historial por tipo de documento');

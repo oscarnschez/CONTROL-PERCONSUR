@@ -226,8 +226,11 @@ export function filterLoads(loads, f, view) {
     if (f.operatorId && r.operatorId !== f.operatorId) return false;
     if (f.from && r.scheduledDate < f.from) return false;
     if (f.to && r.scheduledDate > f.to) return false;
+    /* La vista (catálogos y documentos) solo se resuelve si el filtro documental o la búsqueda la necesitan */
+    const byDocs = f.docs && f.docs !== 'all';
+    if (!byDocs && !q) return true;
     const v = view(r);
-    if (f.docs && f.docs !== 'all' && (f.docs === 'complete') !== !!v.docs.complete) return false;
+    if (byDocs && (f.docs === 'complete') !== !!v.docs.complete) return false;
     if (!q) return true;
     const hay = [r.containerNumber, r.reference, v.place, v.unit, v.placas, v.operator, v.trailer, r.notes].map(fold).join('\u0001');
     return q.split(/\s+/).every((w) => hay.includes(w));

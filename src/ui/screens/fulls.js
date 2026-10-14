@@ -16,7 +16,7 @@ import { listAll, activeLoadingYards, save as saveCatalog, trailerScope, trailer
 import { operatorList, allTrips } from '../../services/operators.js';
 import * as lg from '../../services/logistics.js';
 import { vehicles as fleetUnits } from '../../services/fuel.js';
-import { dossierPlan, buildDossier, HEAVY_BYTES } from '../../services/fullDossier.js';
+import { dossierPlan, planDossier, buildDossier, HEAVY_BYTES } from '../../services/fullDossier.js';
 import { shareFile, downloadBlob, openBlob, isIOS } from '../../services/share.js';
 import {
   LOAD_STATUSES, loadStatus, isOpenLoad, LOCATIONS, locationLabel, placeLabel, DOC_TYPES, docType, docLabel, docState, DOC_STATE_LABELS, hasFile,
@@ -51,8 +51,8 @@ const locBadge = (r) => `<span class="fc-loc ${r.locationType === 'port' ? 'port
 const lateChip = () => `<span class="ec-late">${icon.alert}Cita vencida</span>`;
 
 /* Tarjeta: 1) contenedor y hora 2) peso y lugar 3) transporte 4) estados */
-function card(r, { compact = false } = {}) {
-  const v = fc.view(r), s = loadStatus(r.status), late = isLate(r);
+function card(r, { compact = false, view = fc.view } = {}) {
+  const v = view(r), s = loadStatus(r.status), late = isLate(r);
   return `<a class="fc-card lg-t-${s.tone}${late ? ' late' : ''}${isOpenLoad(r) ? '' : ' done'}" href="${href(r.id)}">
     <div class="fc-c1"><b class="fc-num mono">${esc(r.containerNumber)}</b><span class="fc-when">${esc(compact ? r.scheduledTime : whenText(r.scheduledDate, r.scheduledTime))}</span><span class="chev">${icon.chev}</span></div>
     <div class="fc-c2"><span class="fc-w">${esc(v.weight)}</span><span class="dot">·</span>${locBadge(r)}${v.place ? `<span class="dot">·</span><span>${esc(v.place)}</span>` : ''}</div>
@@ -66,6 +66,12 @@ const eventRow = (e) => `<div class="row static ec-mv${e.eventType === 'loaded' 
 /* ===== Pantalla principal ===== */
 const PRESETS = [['today', 'Cargas de hoy'], ['upcoming', 'Próximas cargas'], ['docs_pending', 'Documentación pendiente'], ['docs_ok', 'Documentación completa'], ['history', 'Historial'], ['all', 'Todas']];
 const RANGES = [['all', 'Todas las fechas'], ['today', 'Hoy'], ['tomorrow', 'Mañana'], ['week', 'Próximos 7 días'], ['late', 'Citas vencidas'], ['month', 'Este mes']];
+/* Indicadores: [clave, etiqueta, campo de summary(), filtro que abre]. El filtro cuenta lo mismo que el número */
+const TILES = [
+  ['today', 'Hoy', 'today', { preset: 'today' }], ['tomorrow', 'Mañana', 'tomorrow', { preset: 'upcoming', range: 'tomorrow' }],
+  ['week', 'Esta semana', 'week', { preset: 'upcoming', range: 'week' }], ['docs', 'Doc. pendiente', 'docsPending', { preset: 'docs_pending' }],
+  ['ready', 'Listas', 'ready', { preset: 'all', status: 'ready' }], ['done', 'Finalizadas', 'done', { preset: 'history' }],
+];
 export async function fullsScreen() {
   await fc.loadFulls();
   const desktop = window.matchMedia && window.matchMedia('(min-width:1024px)').matches;
@@ -93,16 +99,16 @@ export async function fullsScreen() {
     <div data-list aria-live="polite"></div>
   </div>`);
   const root = s.el;
-  const base = () => filterLoads(fc.all(), { text: f.text, location: f.location, terminalId: f.terminalId, yardId: f.yardId, vehicleId: f.vehicleId, operatorId: f.operatorId, status: f.status, ...rangeOf() }, fc.view);
+  const base = (vw) => filterLoads(fc.all(), { text: f.text, location: f.location, terminalId: f.terminalId, yardId: f.yardId, vehicleId: f.vehicleId, operatorId: f.operatorId, status: f.status, ...rangeOf() }, vw);
   const rangeOf = () => rangeDates(f.range, todayStr());
-  function listOf(all) {
+  function listOf(all, vw) {
     const today = todayStr();
     if (f.range === 'late') all = all.filter((r) => isLate(r));
     switch (f.preset) {
       case 'today': return sortByWhen(all.filter((r) => r.scheduledDate === today && isOpenLoad(r)));
       case 'upcoming': return sortByWhen(all.filter((r) => isOpenLoad(r) && r.scheduledDate >= today));
-      case 'docs_pending': return sortByWhen(all.filter((r) => isOpenLoad(r) && !fc.summaryOf(r).complete));
-      case 'docs_ok': return sortByWhen(all.filter((r) => isOpenLoad(r) && fc.summaryOf(r).complete));
+      case 'docs_pending': return sortByWhen(all.filter((r) => isOpenLoad(r) && !vw(r).docs.complete));
+      case 'docs_ok': return sortByWhen(all.filter((r) => isOpenLoad(r) && vw(r).docs.complete));
       case 'history': return all.filter((r) => !isOpenLoad(r)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       default: return sortByWhen(all);
     }
@@ -114,12 +120,12 @@ export async function fullsScreen() {
     const w = weekDays(cal.cursor), [y1, m1, d1] = parts(w[0]), [, m2, d2] = parts(w[6]);
     return m1 === m2 ? `${d1} – ${d2} ${MES[m1 - 1].slice(0, 3)} ${y1}` : `${d1} ${MES[m1 - 1].slice(0, 3)} – ${d2} ${MES[m2 - 1].slice(0, 3)} ${y1}`;
   }
-  function drawCal(all) {
+  function drawCal(all, vw) {
     const days = byDay(all.filter((r) => r.status !== 'cancelled')), today = todayStr();
     root.querySelectorAll('[data-view]').forEach((b) => { b.classList.toggle('on', b.dataset.view === cal.view); b.setAttribute('aria-pressed', b.dataset.view === cal.view); });
     root.querySelector('[data-caltitle]').textContent = calTitle();
     const el = root.querySelector('[data-calbox]');
-    const dayList = (d, { title = true } = {}) => { const list = days.get(d) || []; return `${title ? `<div class="fc-dh"><span>${esc(longDay(d))}</span><small>${list.length ? plural(list.length, 'carga', 'cargas') : 'Sin cargas'}</small></div>` : ''}${list.length ? `<div class="fc-cards">${list.map((r) => card(r, { compact: true })).join('')}</div>` : '<p class="fc-none">Sin cargas programadas este día.</p>'}`; };
+    const dayList = (d, { title = true } = {}) => { const list = days.get(d) || []; return `${title ? `<div class="fc-dh"><span>${esc(longDay(d))}</span><small>${list.length ? plural(list.length, 'carga', 'cargas') : 'Sin cargas'}</small></div>` : ''}${list.length ? `<div class="fc-cards">${list.map((r) => card(r, { compact: true, view: vw })).join('')}</div>` : '<p class="fc-none">Sin cargas programadas este día.</p>'}`; };
     if (cal.view === 'month') {
       const mo = monthOf(cal.cursor), weeks = monthGrid(cal.cursor);
       el.innerHTML = `<div class="fc-month"><div class="fc-dow">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((x) => `<span>${x}</span>`).join('')}</div><div class="fc-grid">${weeks.flat().map((d) => {
@@ -129,18 +135,15 @@ export async function fullsScreen() {
           <span class="fc-evs" aria-hidden="true">${list.slice(0, 3).map((r) => `<span class="fc-ev lg-t-${loadStatus(r.status).tone}${isOpenLoad(r) ? '' : ' done'}">${esc(r.scheduledTime)} ${esc(r.containerNumber)}</span>`).join('')}${list.length > 3 ? `<span class="fc-more">+${list.length - 3} más</span>` : ''}</span></button>`;
       }).join('')}</div></div><div class="fc-daylist">${dayList(cal.selected)}</div>`;
     } else if (cal.view === 'week') {
-      el.innerHTML = `<div class="fc-week">${weekDays(cal.cursor).map((d) => { const list = days.get(d) || []; return `<section class="fc-wday${d === today ? ' today' : ''}"><h3 class="fc-wh"><b>${esc(shortDay(d))}</b><small>${list.length ? plural(list.length, 'carga', 'cargas') : 'Sin cargas'}</small></h3>${list.length ? `<div class="fc-cards">${list.map((r) => card(r, { compact: true })).join('')}</div>` : '<p class="fc-none">Sin cargas</p>'}</section>`; }).join('')}</div>`;
+      el.innerHTML = `<div class="fc-week">${weekDays(cal.cursor).map((d) => { const list = days.get(d) || []; return `<section class="fc-wday${d === today ? ' today' : ''}"><h3 class="fc-wh"><b>${esc(shortDay(d))}</b><small>${list.length ? plural(list.length, 'carga', 'cargas') : 'Sin cargas'}</small></h3>${list.length ? `<div class="fc-cards">${list.map((r) => card(r, { compact: true, view: vw })).join('')}</div>` : '<p class="fc-none">Sin cargas</p>'}</section>`; }).join('')}</div>`;
     } else el.innerHTML = `<div class="fc-dayview">${dayList(cal.cursor)}</div>`;
     const inView = cal.view === 'month' ? [...days.entries()].filter(([d]) => monthOf(d) === monthOf(cal.cursor)) : cal.view === 'week' ? weekDays(cal.cursor).map((d) => [d, days.get(d) || []]) : [[cal.cursor, days.get(cal.cursor) || []]];
     const n = inView.reduce((a, [, l]) => a + l.length, 0);
     root.querySelector('[data-boardn]').textContent = n ? plural(n, 'carga', 'cargas') + (cal.view === 'month' ? ' este mes' : cal.view === 'week' ? ' esta semana' : '') : '';
   }
   function draw() {
-    const all = fc.all(), sm = summary(all, fc.docsOf);
-    const tiles = [['today', 'Hoy', sm.today, { preset: 'today' }], ['tomorrow', 'Mañana', sm.tomorrow, { preset: 'upcoming', range: 'tomorrow' }], ['week', 'Esta semana', sm.week, { preset: 'upcoming', range: 'week' }],
-      ['docs', 'Doc. pendiente', sm.docsPending, { preset: 'docs_pending' }], ['ready', 'Listas', sm.ready, { preset: 'all', status: 'ready' }], ['done', 'Finalizadas', sm.done, { preset: 'history' }]];
-    root.querySelector('[data-tiles]').innerHTML = tiles.map(([k, l, c]) => `<button type="button" class="tile ec-tile fc-tile" data-tile="${k}" aria-label="${esc(l)}: ${c}"><small>${l}</small><b>${c}</b></button>`).join('');
-    root.querySelector('[data-tiles]').dataset.map = JSON.stringify(Object.fromEntries(tiles.map(([k, , , fl]) => [k, fl])));
+    const vw = fc.viewer(), all = fc.all(), sm = summary(all, vw.docsOf);
+    root.querySelector('[data-tiles]').innerHTML = TILES.map(([k, l, n]) => `<button type="button" class="tile ec-tile fc-tile" data-tile="${k}" aria-label="${esc(l)}: ${sm[n]}"><small>${l}</small><b>${sm[n]}</b></button>`).join('');
     root.querySelector('[data-f1]').innerHTML = PRESETS.map(([k, l]) => `<button type="button" class="chip${f.preset === k ? ' on' : ''}" data-preset="${k}" aria-pressed="${f.preset === k}">${esc(l)}</button>`).join('');
     const tName = f.terminalId ? (fc.terminalById(f.terminalId) || {}).name : '', yName = f.yardId ? (fc.loadingYardById(f.yardId) || {}).name : '';
     const uName = f.vehicleId ? (fc.unitById(f.vehicleId) || {}).label : '', oName = f.operatorId ? ((operatorList().find((o) => o.id === f.operatorId) || {}).name || '').split(' ').slice(0, 2).join(' ') : '';
@@ -148,21 +151,21 @@ export async function fullsScreen() {
     root.querySelector('[data-f2]').innerHTML = [['location', f.location === 'all' ? 'Dentro / fuera' : locationLabel(f.location), f.location !== 'all'], ['terminal', tName || 'Terminal', !!f.terminalId], ['yard', yName || 'Patio', !!f.yardId],
       ['status', f.status === 'all' ? 'Estado' : loadStatus(f.status).short, f.status !== 'all'], ['vehicle', uName || 'Unidad', !!f.vehicleId], ['operator', oName || 'Operador', !!f.operatorId], ['range', f.range === 'all' ? 'Fecha' : rl, f.range !== 'all']]
       .map(([k, l, onf]) => `<button type="button" class="chip${onf ? ' on' : ''}" data-f="${k}">${esc(l)}${onf ? icon.close : icon.down}</button>`).join('');
-    const filtered = base();
-    drawCal(filtered);
-    const list = listOf(filtered), hist = f.preset === 'history', shown = hist ? list.slice(0, shownHist) : list;
+    const filtered = base(vw);
+    drawCal(filtered, vw);
+    const list = listOf(filtered, vw), hist = f.preset === 'history', shown = hist ? list.slice(0, shownHist) : list;
     const lbl = (PRESETS.find(([k]) => k === f.preset) || [])[1];
     root.querySelector('[data-list]').innerHTML = !all.length
       ? `<div class="empty"><p><b class="empty-t">Aún no hay cargas programadas</b>Programa la primera: contenedor, peso, dónde se carga, fecha y hora. El transporte se puede asignar después.</p><button type="button" class="btn-primary sm" data-new>${icon.plus}<span>Programar carga</span></button></div>`
       : `<div class="sec-hrow"><h2 class="sec-h">${esc(lbl)}</h2><span class="count">${list.length}</span></div>
-        ${list.length ? `<div class="fc-cards fc-list">${shown.map((r) => card(r)).join('')}</div>${list.length > shown.length ? `<button type="button" class="btn-ghost block" data-more>Mostrar más (${list.length - shown.length})</button>` : ''}` : `<div class="empty"><p>${f.text || f.location !== 'all' || f.terminalId || f.yardId || f.vehicleId || f.operatorId || f.status !== 'all' || f.range !== 'all' ? 'Sin coincidencias con estos filtros.' : { today: 'No hay cargas programadas para hoy.', upcoming: 'No hay cargas próximas.', docs_pending: 'Todas las cargas abiertas tienen su documentación completa.', docs_ok: 'Ninguna carga abierta tiene todavía la documentación completa.', history: 'Aún no hay cargas finalizadas ni canceladas.' }[f.preset] || 'Sin cargas.'}</p></div>`}`;
+        ${list.length ? `<div class="fc-cards fc-list">${shown.map((r) => card(r, { view: vw })).join('')}</div>${list.length > shown.length ? `<button type="button" class="btn-ghost block" data-more>Mostrar más (${list.length - shown.length})</button>` : ''}` : `<div class="empty"><p>${f.text || f.location !== 'all' || f.terminalId || f.yardId || f.vehicleId || f.operatorId || f.status !== 'all' || f.range !== 'all' ? 'Sin coincidencias con estos filtros.' : { today: 'No hay cargas programadas para hoy.', upcoming: 'No hay cargas próximas.', docs_pending: 'Todas las cargas abiertas tienen su documentación completa.', docs_ok: 'Ninguna carga abierta tiene todavía la documentación completa.', history: 'Aún no hay cargas finalizadas ni canceladas.' }[f.preset] || 'Sin cargas.'}</p></div>`}`;
   }
   on(root, 'click', '[data-back]', () => back('/operacion/logistica'));
   on(root, 'click', '[data-new]', () => openLoadForm(null, { onSaved: (r) => go(`/operacion/logistica/llenos/${r.id}`) }));
   on(root, 'click', '[data-more]', () => { shownHist += 20; draw(); });
   on(root, 'click', '[data-preset]', (e, b) => { f.preset = b.dataset.preset; draw(); });
   on(root, 'click', '[data-tile]', (e, b) => {
-    const map = JSON.parse(root.querySelector('[data-tiles]').dataset.map || '{}')[b.dataset.tile] || {};
+    const map = (TILES.find(([k]) => k === b.dataset.tile) || [])[3] || {};
     f.preset = map.preset || 'all'; f.range = map.range || 'all'; f.status = map.status || 'all'; draw();
     root.querySelector('[data-f1]').scrollIntoView({ block: 'start', behavior: 'smooth' });
   });
@@ -565,40 +568,62 @@ export function openStatusSheet(load) {
 /* ===== Expediente: vista previa (orden, qué incluir y páginas) ===== */
 export async function openDossierPreview(load0) {
   const load = fc.byId(load0.id) || load0;
-  const plan = await dossierPlan(load);
-  if (!plan.all.length) { toast('Todavía no hay documentos adjuntados para el expediente.', { type: 'info' }); return; }
-  const ids = plan.sections.filter((s) => s.kind === 'img').map((s) => s.doc.storageKey);
-  await media.ensureURLs(ids);
+  /* Documentos y archivos faltantes se leen una vez; al reordenar o excluir solo se recalcula el plan (sin leer la base ni reabrir la hoja) */
+  const docs = fc.docsOf(load.id), missing = await fc.missingFiles(load.id);
   const skip = new Set(load.dossierSkip || []);
+  let plan = planDossier(load, docs, missing);
+  if (!plan.all.length) { toast('Todavía no hay documentos adjuntados para el expediente.', { type: 'info' }); return; }
+  await media.ensureURLs(plan.all.filter((d) => d.kind === 'img' && !missing.has(d.id)).map((d) => d.storageKey));
   const row = (d, i, n) => `<li class="att fc-xprow${skip.has(d.id) ? ' off' : ''}" data-xp="${esc(d.id)}">
       <label class="sw-row fc-xpsw"><input type="checkbox" switch class="sw" data-inc${skip.has(d.id) ? '' : ' checked'} aria-label="Incluir ${esc(docLabel(d))}"></label>
       <span class="att-ic ${esc(d.kind)}"${d.kind === 'img' && media.urlFor(d.storageKey) ? ` style="background-image:url('${media.urlFor(d.storageKey)}')"` : ''}>${d.kind === 'pdf' ? 'PDF' : ''}</span>
-      <span class="att-tx"><b>${esc(docLabel(d))}</b><small>${esc(d.name)} · ${d.kind === 'pdf' ? plural(d.pages || 1, 'página', 'páginas') : 'imagen'}${plan.missing.has(d.id) ? ' · no disponible en este dispositivo' : ''}</small></span>
+      <span class="att-tx"><b>${esc(docLabel(d))}</b><small>${esc(d.name)} · ${d.kind === 'pdf' ? plural(d.pages || 1, 'página', 'páginas') : 'imagen'}${missing.has(d.id) ? ' · no disponible en este dispositivo' : ''}</small></span>
       <span class="att-b"><button type="button" class="icon-btn" data-mv="-1" aria-label="Subir"${i ? '' : ' disabled'}>${icon.up}</button><button type="button" class="icon-btn" data-mv="1" aria-label="Bajar"${i < n - 1 ? '' : ' disabled'}>${icon.down}</button></span></li>`;
   const page = (n, img = '') => `<figure class="td-pg${img ? '' : ' ph'}">${img ? `<img src="${img}" alt="Página ${n}" loading="lazy">` : `${icon.file}`}<figcaption>Página ${n}</figcaption></figure>`;
-  const secHTML = plan.sections.map((s) => { const n = s.to - s.from + 1, pages = []; for (let k = 0; k < n; k++) pages.push(page(s.from + k, s.kind === 'img' ? media.urlFor(s.doc.storageKey) : '')); return `<section class="td-sec"><div class="td-sech"><b>${esc(s.label)}</b><small>${esc(s.name)} · ${n === 1 ? `Página ${s.from}` : `Páginas ${s.from} a ${s.to}`}</small></div><div class="td-pages">${pages.join('')}</div>${s.kind === 'pdf' ? '<p class="td-note">Páginas originales del PDF; se ven completas al generar el expediente.</p>' : ''}</section>`; }).join('');
+  const leadHTML = (p) => `${esc(load.containerNumber)} · ${p.sections.length ? `${plural(p.pages, 'página', 'páginas')} · ${plural(p.sections.length, 'documento', 'documentos')} · aprox. ${esc(fmtSize(p.bytes))}` : 'Sin documentos incluidos'}`;
+  const unavHTML = (p) => (p.unavailable.length ? `<p class="op-warn">${icon.alert}<span>No disponible en este dispositivo: ${p.unavailable.map((d) => esc(docLabel(d))).join(', ')}. Se omitirá.</span></p>` : '');
+  const secHTML = (p) => p.sections.map((x) => { const n = x.to - x.from + 1, pages = []; for (let k = 0; k < n; k++) pages.push(page(x.from + k, x.kind === 'img' ? media.urlFor(x.doc.storageKey) : '')); return `<section class="td-sec"><div class="td-sech"><b>${esc(x.label)}</b><small>${esc(x.name)} · ${n === 1 ? `Página ${x.from}` : `Páginas ${x.from} a ${x.to}`}</small></div><div class="td-pages">${pages.join('')}</div>${x.kind === 'pdf' ? '<p class="td-note">Páginas originales del PDF; se ven completas al generar el expediente.</p>' : ''}</section>`; }).join('') || '<p class="td-empty">Incluye al menos un documento.</p>';
   const sh = openSheet({ title: 'Vista previa del expediente', full: true, body: `
-    <p class="sheet-lead">${esc(load.containerNumber)} · ${plan.sections.length ? `${plural(plan.pages, 'página', 'páginas')} · ${plural(plan.sections.length, 'documento', 'documentos')} · aprox. ${esc(fmtSize(plan.bytes))}` : 'Sin documentos incluidos'}</p>
+    <p class="sheet-lead" data-lead>${leadHTML(plan)}</p>
     <h3 class="pk-h">Documentos y orden</h3>
     <ul class="att-list fc-xp" data-w>${plan.all.map((d, i) => row(d, i, plan.all.length)).join('')}</ul>
-    ${plan.unavailable.length ? `<p class="op-warn">${icon.alert}<span>No disponible en este dispositivo: ${plan.unavailable.map((d) => esc(docLabel(d))).join(', ')}. Se omitirá.</span></p>` : ''}
+    <div data-unav>${unavHTML(plan)}</div>
     <h3 class="pk-h">Contenido final</h3>
-    <div class="td-preview">${secHTML || '<p class="td-empty">Incluye al menos un documento.</p>'}</div>
+    <div class="td-preview" data-secs>${secHTML(plan)}</div>
     <div class="sheet-foot"><div class="sheet-acts"><button type="button" class="btn-secondary" data-x="back">${icon.back}<span>Volver</span></button><button type="button" class="btn-primary" data-x="build"${plan.sections.length ? '' : ' disabled'}>${icon.file}<span>Generar PDF</span></button></div></div>` });
-  let dirty = false;
-  const save = async () => {
-    const order = [...sh.body.querySelectorAll('[data-xp]')].map((li) => li.dataset.xp), sk = order.filter((idd) => { const li = sh.body.querySelector(`[data-xp="${CSS.escape(idd)}"]`); return !li.querySelector('[data-inc]').checked; });
-    await fc.setDossier(load.id, { order, skip: sk }); dirty = true;
+  const list = sh.body.querySelector('.fc-xp');
+  /* Guarda el orden y la selección y actualiza en su lugar el resumen, los avisos, las páginas y las flechas */
+  const update = async () => {
+    const lis = [...list.querySelectorAll('[data-xp]')], order = lis.map((li) => li.dataset.xp);
+    lis.forEach((li, i) => { li.querySelector('[data-mv="-1"]').disabled = i === 0; li.querySelector('[data-mv="1"]').disabled = i === lis.length - 1; });
+    plan = planDossier({ ...load, dossierOrder: order, dossierSkip: [...skip] }, docs, missing);
+    sh.body.querySelector('[data-lead]').innerHTML = leadHTML(plan);
+    sh.body.querySelector('[data-unav]').innerHTML = unavHTML(plan);
+    sh.body.querySelector('[data-secs]').innerHTML = secHTML(plan);
+    sh.body.querySelector('[data-x="build"]').disabled = !plan.sections.length;
+    await fc.setDossier(load.id, { order, skip: [...skip] });
   };
-  sh.body.addEventListener('change', async (e) => { if (!e.target.matches('[data-inc]')) return; e.target.closest('[data-xp]').classList.toggle('off', !e.target.checked); await save(); sh.close(); openDossierPreview(load); });
+  sh.body.addEventListener('change', async (e) => {
+    if (!e.target.matches('[data-inc]')) return;
+    const li = e.target.closest('[data-xp]');
+    if (e.target.checked) skip.delete(li.dataset.xp); else skip.add(li.dataset.xp);
+    li.classList.toggle('off', !e.target.checked);
+    await update();
+  });
   sh.body.addEventListener('click', async (e) => {
     const mv = e.target.closest('[data-mv]');
-    if (mv) { const li = mv.closest('[data-xp]'), sib = +mv.dataset.mv < 0 ? li.previousElementSibling : li.nextElementSibling; if (!sib) return; if (+mv.dataset.mv < 0) li.parentNode.insertBefore(li, sib); else li.parentNode.insertBefore(sib, li); await save(); sh.close(); openDossierPreview(load); return; }
+    if (mv) {
+      const li = mv.closest('[data-xp]'), up = +mv.dataset.mv < 0, sib = up ? li.previousElementSibling : li.nextElementSibling; if (!sib) return;
+      if (up) list.insertBefore(li, sib); else list.insertBefore(sib, li);
+      await update();
+      /* El foco sigue en la flecha que se tocó; si quedó desactivada (primer o último lugar), pasa a la otra */
+      (mv.disabled ? li.querySelector(`[data-mv="${up ? 1 : -1}"]`) : mv).focus();
+      return;
+    }
     const b = e.target.closest('[data-x]'); if (!b) return;
     if (b.dataset.x === 'back') { sh.close(); return; }
     sh.close(); generateDossier(fc.byId(load.id) || load);
   });
-  return dirty;
 }
 
 /* ===== Expediente: generar PDF y compartir ===== */

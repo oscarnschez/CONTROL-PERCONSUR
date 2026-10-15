@@ -8,12 +8,15 @@ import { createBaseMap } from './engine.js';
 import { VehicleMarker, destinationMarker } from './VehicleMarker.js';
 import { MapControls } from './MapControls.js';
 
-/* opts: { centerLabel, fitLabel } → { setVehicle(v|null), setDestination(d|null), recenter(), showAll(), destroy() } */
-export async function createVehicleMap(container, { centerLabel = 'Centrar unidad', fitLabel = 'Ver unidad y destino' } = {}) {
-  const base = await createBaseMap(container);
+/*
+ * opts: { centerLabel, fitLabel, views } → { setVehicle(v|null), setDestination(d|null), recenter(), showAll(), view, setView(v), destroy() }
+ *   views  true = botón para cambiar entre vista de mapa y satelital
+ */
+export async function createVehicleMap(container, { centerLabel = 'Centrar unidad', fitLabel = 'Ver unidad y destino', views = false } = {}) {
+  const base = await createBaseMap(container, { views });
   const { ml, map } = base;
   let vm = null, dest = null, destPt = null, destKey = '', follow = true, mode = 'both', framed = false, gone = false;
-  const controls = new MapControls({ onCenter: () => api.recenter(), onFit: () => api.showAll(), centerLabel, fitLabel });
+  const controls = new MapControls({ onCenter: () => api.recenter(), onFit: () => api.showAll(), centerLabel, fitLabel, base: views ? base : null });
   map.addControl(controls, 'top-right');
   controls.setCenterEnabled(false);
   map.on('dragstart', () => { follow = false; });
@@ -60,6 +63,8 @@ export async function createVehicleMap(container, { centerLabel = 'Centrar unida
     recenter() { follow = true; mode = 'vehicle'; frame(true); },
     showAll() { follow = true; mode = 'both'; frame(true); },
     resize() { if (!gone) map.resize(); },
+    get view() { return base.view; },
+    setView: (v) => base.setView(v),
     destroy() { if (gone) return; gone = true; if (vm) vm.remove(); if (dest) dest.remove(); base.destroy(); },
   };
   container._vmap = api;   /* acceso para pruebas automatizadas */

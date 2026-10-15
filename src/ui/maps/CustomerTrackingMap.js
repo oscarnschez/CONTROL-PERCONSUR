@@ -6,8 +6,9 @@
  */
 import { createVehicleMap } from './VehicleMap.js';
 
-export async function createCustomerTrackingMap(container) {
-  const vmap = await createVehicleMap(container, { centerLabel: 'Centrar mi envío', fitLabel: 'Ver envío y destino' });
+/* opts: { views } true = botón Mapa / Satélite (solo si el Worker permite las imágenes satelitales) */
+export async function createCustomerTrackingMap(container, { views = false } = {}) {
+  const vmap = await createVehicleMap(container, { centerLabel: 'Centrar mi envío', fitLabel: 'Ver envío y destino', views });
   return {
     update(data) {
       const p = data && data.state === 'active' ? data.position : null;

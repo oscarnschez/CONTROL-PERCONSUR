@@ -73,7 +73,8 @@ async function ensureMap() {
   if (map || mapState === 'loading' || mapState === 'failed') return;
   mapState = 'loading';
   try {
-    map = await createCustomerTrackingMap(root.querySelector('[data-pt-map]'));
+    /* Vista satelital solo si el Worker ya permite sus imágenes (data-sat); con un Worker anterior no se ofrece */
+    map = await createCustomerTrackingMap(root.querySelector('[data-pt-map]'), { views: root.dataset.sat === '1' });
     mapState = 'ready';
     if (data) map.update(data);
   } catch (e) {

@@ -504,7 +504,7 @@ export function portalHTML(app, token) {
 <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
 <link rel="stylesheet" href="${a}vendor/fonts/archivo.css"><link rel="stylesheet" href="${a}vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="${a}styles/tokens.css"><link rel="stylesheet" href="${a}styles/maps.css"><link rel="stylesheet" href="${a}styles/portal.css">
 </head><body class="pt-body">
-<main id="portal" class="pt nomap" data-api="/v1/publico/${t}" data-app="${a}">
+<main id="portal" class="pt nomap" data-api="/v1/publico/${t}" data-app="${a}" data-sat="1">
 <header class="pt-head"><img class="pt-mark" src="${a}assets/brand/perconsur-mark.png" alt=""><span class="pt-word">PERCONSUR</span><span class="pt-tag">Rastreo de envío</span></header>
 <div class="pt-band" aria-hidden="true"></div>
 <p class="pt-loading" role="status">Cargando la ubicación de tu envío…</p>
@@ -512,11 +512,13 @@ export function portalHTML(app, token) {
 <script type="module" src="${a}src/portal/main.js"></script>
 </body></html>`;
 }
+/* Imágenes de la vista satelital del mapa (Esri World Imagery, sin clave); data-sat="1" avisa al portal que puede ofrecerla */
+const SAT_TILES = 'https://server.arcgisonline.com';
 function portalResponse(env, token, status = 200) {
   const app = appUrl(env);
   const html = app ? portalHTML(app, token) : '<!DOCTYPE html><meta charset="utf-8"><title>PERCONSUR</title><p style="font-family:Arial;padding:24px">El portal de rastreo no está configurado (APP_URL).</p>';
   const src = app || "'none'";
-  const csp = `default-src 'none'; script-src ${src}; style-src ${src} 'unsafe-inline'; img-src ${src} data: blob:; font-src ${src} data:; connect-src 'self' https://tiles.openfreemap.org ${src}; worker-src blob: ${src}; child-src blob:; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+  const csp = `default-src 'none'; script-src ${src}; style-src ${src} 'unsafe-inline'; img-src ${src} data: blob: ${SAT_TILES}; font-src ${src} data:; connect-src 'self' https://tiles.openfreemap.org ${SAT_TILES} ${src}; worker-src blob: ${src}; child-src blob:; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': csp,
     'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow', 'Permissions-Policy': 'geolocation=(), camera=(), microphone=()' } });
 }

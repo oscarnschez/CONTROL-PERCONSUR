@@ -34,6 +34,8 @@ export const icon = {
   flag: I('<path d="M5.5 21V3.8"/><path d="M5.5 4.5h12l-2.6 4 2.6 4h-12"/>'),
   route: I('<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>'),
   crosshair: I('<circle cx="12" cy="12" r="7.5"/><path d="M12 1.8v4M12 18.2v4M1.8 12h4M18.2 12h4"/>'),
+  /* Escudo con palomita: acceso autorizado (aviso del inicio de sesión) */
+  shield: I('<path d="M12 3.3 5.2 6v5.3c0 4.3 2.9 7.8 6.8 9.4 3.9-1.6 6.8-5.1 6.8-9.4V6z"/><path d="m9.3 12.1 1.9 1.9 3.6-3.7"/>'),
   clock: I('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
   refresh: I('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>'),
   up: I('<path d="m6 14.5 6-6 6 6"/>', ' stroke-width="2"'),

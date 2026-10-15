@@ -5,6 +5,7 @@
  */
 export const OPERATION_MODULES = [
   { key: 'logistica', title: 'Logística', desc: 'Estado y asignación actual de las unidades.', route: '/operacion/logistica', icon: 'truck' },
+  { key: 'mapa', title: 'Mapa de viajes', desc: 'Distribución de viajes por estado de destino en las 32 entidades.', route: '/operacion/mapa', icon: 'map' },
   { key: 'combustible', title: 'Combustible y rendimiento', nav: 'Combustible', desc: 'Recargas por unidad, rendimiento km/L, gráficas y reporte en Excel.', route: '/operacion/combustible', icon: 'fuel' },
   { key: 'taller', title: 'Taller', desc: 'Control de mantenimiento y reparaciones de unidades y remolques.', route: '/operacion/taller', icon: 'wrench' },
 ];

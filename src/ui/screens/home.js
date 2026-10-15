@@ -1,4 +1,4 @@
-/* Inicio: saludo, divisiones, documentos sin terminar, recientes y unidades en operación (Logística). */
+/* Inicio: saludo, divisiones, documentos sin terminar, cobertura nacional (Mapa de viajes), recientes y unidades en operación (Logística). */
 import { screen, on } from '../../core/dom.js';
 import { go } from '../../core/router.js';
 import { allDrafts } from '../../services/drafts.js';
@@ -14,6 +14,7 @@ import { startPuerto, startCampo, discardDraft, draftRoute } from '../flows.js';
 import { confirmDestructive } from '../components/sheet.js';
 import { docRow } from './documents.js';
 import { mountHomeOps } from './logistics.js';
+import { mountCoverage } from './tripsMap.js';
 import * as sync from '../../services/sync.js';
 import { whenText } from '../../domain/sync/sync.js';
 
@@ -53,6 +54,7 @@ export async function homeScreen() {
         <button type="button" class="div-act" data-new="campo"><span>Nueva asignación</span>${icon.chev}</button>
       </article>
     </section>
+    <section class="sec tm-homew" data-coverage aria-label="Cobertura nacional" hidden></section>
     <section class="sec home-recent">
       <div class="sec-hrow"><h2 class="sec-h">Recientes</h2>${docs.length ? '<a class="link" href="#/documentos">Ver todos</a>' : ''}</div>
       ${recent.length ? `<div class="list">${recent.map(docRow).join('')}</div>` : `<div class="empty"><p><b class="empty-t">Aún no hay documentos</b>Las notas de entrega y asignaciones que generes aparecerán aquí.</p></div>`}
@@ -62,6 +64,8 @@ export async function homeScreen() {
   const root = s.el;
   /* Unidades en operación: se redibuja sola cuando cambia Logística */
   const unOps = mountHomeOps(root.querySelector('[data-lghome]'));
+  /* Cobertura nacional: resumen del Mapa de viajes (se llena sin retrasar Inicio) */
+  const unCov = mountCoverage(root.querySelector('[data-coverage]'));
   /* Información compartida: modo consulta o estado de la publicación */
   const pill = root.querySelector('[data-syncpill]');
   const drawPill = () => {
@@ -82,7 +86,7 @@ export async function homeScreen() {
   };
   drawPill();
   const unSync = sync.onSyncChange(drawPill);
-  s.cleanup = () => { unSync(); if (typeof unOps === 'function') unOps(); };
+  s.cleanup = () => { unSync(); unCov(); if (typeof unOps === 'function') unOps(); };
   on(root, 'click', '[data-new]', (e, b) => (b.dataset.new === 'puerto' ? startPuerto() : startCampo()));
   on(root, 'click', '[data-continue]', (e, b) => { const d = pend.find((x) => x.id === b.dataset.continue); if (d) go(draftRoute(d)); });
   on(root, 'click', '[data-discard]', async (e, b) => {

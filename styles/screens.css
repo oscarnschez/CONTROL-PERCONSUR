@@ -236,6 +236,12 @@ html.kb-open .actionbar{display:none}
 .login-msg.warn{color:var(--warn)}
 .login-msg:empty{margin-bottom:6px}
 .login-foot{margin:28px 0 0;text-align:center;color:var(--muted);font-size:var(--fs-footnote)}
+/* Aviso institucional de acceso restringido: sobrio, parte de la composición (no es un error ni bloquea nada) */
+.login-notice{display:flex;align-items:flex-start;gap:12px;margin:24px 0 0;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--tint);border-radius:var(--r-sm);background:var(--surface)}
+.ln-ic{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue-t);color:var(--tint)}
+.ln-ic .ic{width:18px;height:18px}
+.login-notice p{margin:0;font-size:var(--fs-footnote);line-height:1.45;color:var(--ink-2)}
+.login-notice b{display:block;margin:1px 0 3px;font-size:var(--fs-caption);font-weight:700;letter-spacing:.09em;color:var(--tint)}
 .shake{animation:shake .38s ease}
 @keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
 

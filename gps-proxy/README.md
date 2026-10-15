@@ -129,6 +129,11 @@ navegador de PERCONSUR) con una política de seguridad de contenido estricta, si
 código y el mapa se cargan desde la app publicada en GitHub Pages (que permite cargarlos desde otro sitio). Un código
 inexistente cuenta como intento fallido: 20 en 15 min bloquean esa conexión.
 
+El mapa del portal ofrece vista de mapa o **satelital** (botón «Satélite / Mapa»). Las imágenes satelitales vienen de
+Esri World Imagery (`https://server.arcgisonline.com`, sin clave) y la política de contenido del Worker las permite. El
+botón solo aparece cuando el Worker marca el portal con `data-sat="1"`: con un Worker desplegado antes de este cambio el
+portal sigue mostrando solo la vista de mapa (hay que volver a desplegar el Worker para activarla).
+
 **Consumo de KV (plan gratuito: 100 000 lecturas y 1 000 escrituras al día):** una escritura al crear, actualizar,
 finalizar o revocar un enlace; cada consulta del portal lee el enlace como máximo una vez cada 15 s por instancia.
 

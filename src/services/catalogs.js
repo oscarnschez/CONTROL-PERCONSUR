@@ -1,6 +1,7 @@
 /*
- * Catálogos administrables. Operadores, unidades y remolques pertenecen a una empresa
- * (Campo usa los de PERCONSUR). Destinos, plantas y terminales son generales.
+ * Catálogos administrables. Operadores y remolques pertenecen a una empresa (Campo usa los de PERCONSUR).
+ * Unidades: catálogo único PERCONSUR (Administración → Unidades, services/units.js); el campo company de un registro
+ * antiguo solo indica de qué catálogo venía. Destinos, plantas y terminales son generales.
  */
 import * as db from './db.js';
 import { SEED_OPERATORS, SEED_VEHICLES, SEED_TRAILERS, SEED_YARDS } from '../config/seeds.js';
@@ -25,7 +26,7 @@ export const trailerItems = (company) => list('trailers', company).map((x) => ({
 export const KINDS = {
   operators: { store: db.S.operators, title: 'Operadores', one: 'operador', perCompany: true,
     fields: [['name', 'Nombre completo', { autocapitalize: 'words' }]], label: (x) => x.name, sub: () => '' },
-  vehicles: { store: db.S.vehicles, title: 'Unidades', one: 'unidad', perCompany: true,
+  vehicles: { store: db.S.vehicles, title: 'Unidades', one: 'unidad', perCompany: false,
     fields: [['eco', 'Número económico', { inputmode: 'numeric' }], ['placas', 'Placas', { upper: true }], ['desc', 'Descripción (opcional)', {}],
       ['gpsDeviceId', 'IMEI del GPS (opcional)', { inputmode: 'numeric', digits: true }], ['trackingUrl', 'Enlace de rastreo GPS (opcional)', { url: true }]],
     label: (x) => 'U' + String(x.eco).padStart(2, '0'), sub: (x) => [x.placas, x.desc, x.gpsDeviceId ? 'GPS' : ''].filter(Boolean).join(' | ') },
@@ -61,7 +62,7 @@ export async function loadCatalogs() {
 }
 export function list(kind, company) {
   const items = cache[kind] || [];
-  const out = KINDS[kind].perCompany ? items.filter((x) => x.company === company) : items.slice();
+  const out = KINDS[kind].perCompany ? items.filter((x) => x.company === company) : kind === 'vehicles' ? items.filter((x) => !x.mergedInto) : items.slice();
   const lab = KINDS[kind].label;
   return out.sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || String(lab(a)).localeCompare(String(lab(b)), 'es', { numeric: true }));
 }
@@ -81,17 +82,21 @@ export async function remove(kind, id) {
   cache[kind] = (cache[kind] || []).filter((x) => x.id !== id);
 }
 
-/* Unidades: buscar placas por número económico (fillPlacas) y recordar placas editadas (rememberPlacas) */
+/* Unidades (catálogo único): buscar por número económico, primero las activas. company se conserva en la firma por
+   compatibilidad; ya no separa catálogos. */
 export function vehicleByEco(company, eco) {
   const e = normEco(eco);
-  return list('vehicles', company).find((v) => normEco(v.eco) === e) || null;
+  const c = list('vehicles').filter((v) => normEco(v.eco) === e);
+  return c.find((v) => v.active !== 'no') || c[0] || null;
 }
+/* Placas escritas en un formulario: solo completan una unidad sin placas (o registran una unidad nueva). Cambiar las
+   placas de una unidad existente se hace en su expediente (Administración → Unidades), con historial. */
 export async function rememberPlacas(company, eco, placas) {
   const e = normEco(eco);
   if (!e) return;
   const v = vehicleByEco(company, e);
-  if (v) { if (v.placas !== placas) await save('vehicles', { ...v, placas }); }
-  else if (placas) await save('vehicles', { company, eco: e, placas, desc: '', source: 'auto' });
+  if (v) { if (!v.placas && placas) await save('vehicles', { ...v, placas }); }
+  else if (placas) await save('vehicles', { company: 'perconsur', eco: e, placas, desc: '', source: 'auto' });
 }
 export function plantByName(name) { return list('plants').find((p) => p.name === name) || null; }
 

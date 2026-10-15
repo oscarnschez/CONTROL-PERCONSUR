@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '8fc9af2d16';
+const VERSION = '326f0a94f5';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -56,6 +56,9 @@ const PRECACHE = [
   "./src/domain/tariffs/report.js",
   "./src/domain/tariffs/tariffs.js",
   "./src/domain/tracking/tracking.js",
+  "./src/domain/units/complement.js",
+  "./src/domain/units/exif.js",
+  "./src/domain/units/units.js",
   "./src/main.js",
   "./src/portal/main.js",
   "./src/services/access.js",
@@ -68,6 +71,7 @@ const PRECACHE = [
   "./src/services/companies.js",
   "./src/services/db.js",
   "./src/services/destinations.js",
+  "./src/services/docText.js",
   "./src/services/documents.js",
   "./src/services/dossier.js",
   "./src/services/drafts.js",
@@ -97,11 +101,13 @@ const PRECACHE = [
   "./src/services/tracking.js",
   "./src/services/tripAttachments.js",
   "./src/services/tripsMap.js",
+  "./src/services/units.js",
   "./src/services/xlsx.js",
   "./src/ui/components/brandIntro.js",
   "./src/ui/components/charts.js",
   "./src/ui/components/docview.js",
   "./src/ui/components/fields.js",
+  "./src/ui/components/fileViewer.js",
   "./src/ui/components/gpsMap.js",
   "./src/ui/components/icons.js",
   "./src/ui/components/opening.js",
@@ -111,6 +117,7 @@ const PRECACHE = [
   "./src/ui/components/scrollHints.js",
   "./src/ui/components/sheet.js",
   "./src/ui/components/toast.js",
+  "./src/ui/components/unitPicker.js",
   "./src/ui/flows.js",
   "./src/ui/maps/CustomerTrackingMap.js",
   "./src/ui/maps/FleetMap.js",
@@ -148,6 +155,8 @@ const PRECACHE = [
   "./src/ui/screens/tripDocs.js",
   "./src/ui/screens/tripImport.js",
   "./src/ui/screens/tripsMap.js",
+  "./src/ui/screens/unitFile.js",
+  "./src/ui/screens/units.js",
   "./src/ui/screens/viewer.js",
   "./src/ui/screens/wizardShell.js",
   "./src/ui/screens/workshop.js",
@@ -166,6 +175,7 @@ const PRECACHE = [
   "./styles/screens.css",
   "./styles/tokens.css",
   "./styles/tripsmap.css",
+  "./styles/units.css",
   "./styles/workshop.css",
   "./assets/icons/apple-touch-icon.png",
   "./assets/icons/favicon-32.png",
@@ -199,6 +209,9 @@ const PRECACHE = [
   "./vendor/maplibre/maplibre-gl.css",
   "./vendor/maplibre/maplibre-gl.js",
   "./vendor/pdf-lib.min.js",
+  "./vendor/pdfjs/LICENSE.txt",
+  "./vendor/pdfjs/pdf.min.js",
+  "./vendor/pdfjs/pdf.worker.min.js",
   "./vendor/qrcode.min.js"
 ];
 /* PRECACHE:END */
@@ -211,6 +224,9 @@ const CDN = [
 ];
 const APP_CACHE = 'pcs-app-' + VERSION;
 const EXT_CACHE = 'pcs-ext-v1';
+/* Librerías grandes que no se precargan (OCR): se guardan la primera vez que se usan y sobreviven a las actualizaciones */
+const LIB_CACHE = 'pcs-lib-v1';
+const isLib = (url) => /\/vendor\/ocr\//.test(url.pathname);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -254,6 +270,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  if (isLib(url)) {
+    event.respondWith((async () => {
+      const lib = await caches.open(LIB_CACHE);
+      const hit = await lib.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+      try { const r = await fetch(req); if (r.ok) lib.put(req, r.clone()); return r; } catch (e) { return new Response('', { status: 504, statusText: 'Sin conexión' }); }
+    })());
+    return;
+  }
   event.respondWith((async () => {
     const app = await caches.open(APP_CACHE);
     if (req.mode === 'navigate') {

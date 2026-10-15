@@ -5,6 +5,7 @@
 import { go } from '../../core/router.js';
 import { setPath, on } from '../../core/dom.js';
 import * as drafts from '../../services/drafts.js';
+import { pickUnit } from '../components/unitPicker.js';
 import * as cat from '../../services/catalogs.js';
 import { getCompany } from '../../services/companies.js';
 import { recents } from '../../services/settings.js';
@@ -150,11 +151,11 @@ export async function campoWizard({ step }, q) {
   on(body, 'click', '[data-pick]', async (e, b) => {
     const [, k, f] = b.dataset.pick.split('.'); const u = cp.units[+k];
     if (f === 'eco') {
-      const r = await openPicker({ title: `Unidad ${+k + 1}`, current: u.eco, placeholder: 'Buscar o escribir número', inputmode: 'numeric', autocap: 'none', transform: normEco, newLabel: 'Usar unidad',
-        items: cat.list('vehicles', 'perconsur').map((x) => ({ value: normEco(x.eco), label: ecoLabel(normEco(x.eco)), sub: [x.placas, x.desc].filter(Boolean).join(' | ') })), recents: recents('eco:perconsur') });
+      /* Catálogo único PERCONSUR — Unidades: se guarda la relación (unitId) y se completan las placas */
+      const r = await pickUnit({ title: `Unidad ${+k + 1}`, currentId: u.unitId || '' });
       if (!r) return;
-      u.eco = normEco(r.value);
-      const v = cat.vehicleByEco('perconsur', u.eco);
+      const v = r.unit;
+      u.eco = r.eco; u.unitId = v ? v.id : null;
       if (v && v.placas) { u.pu = v.placas; const pi = body.querySelector(`[data-b="units.${k}.pu"]`); if (pi) pi.value = u.pu; }
       setPickDisplay(body, b.dataset.pick, ecoLabel(u.eco), 'Elegir');
     } else if (f === 'op') {

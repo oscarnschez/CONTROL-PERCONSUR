@@ -12,7 +12,8 @@ import { createHash } from 'node:crypto';
 const ROOT = new URL('..', import.meta.url).pathname;
 const INCLUDE = ['index.html', 'manifest.json', 'src', 'styles', 'assets/icons', 'assets/brand', 'assets/geo', 'vendor'];
 const files = [];
-const walk = (p) => { const s = statSync(p); if (s.isDirectory()) readdirSync(p).sort().forEach((f) => walk(join(p, f))); else if (!/(^|\/)\.|README|\.map$|\/original\//.test(p)) files.push(p); };
+const walk = (p) => { const s = statSync(p); if (s.isDirectory()) readdirSync(p).sort().forEach((f) => walk(join(p, f))); else if (!/(^|\/)\.|README|\.map$|\/original\/|\/vendor\/ocr\//.test(p)) files.push(p); };
+/* vendor/ocr (OCR, ~10 MB) no se precarga: se descarga la primera vez que se usa y queda en la caché «pcs-lib» */
 INCLUDE.forEach((x) => walk(join(ROOT, x)));
 /* ===== Versión visible ===== */
 const VFILE = join(ROOT, 'src/config/version.js');

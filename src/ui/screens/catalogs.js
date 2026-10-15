@@ -29,9 +29,10 @@ export async function catalogsScreen() {
   const s = screen(`<div class="page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Administración</span></button></header>
     <h1 class="title">Catálogos</h1>
-    <p class="page-lead">Datos que se ofrecen al capturar. Operadores, unidades y remolques son de cada empresa; División Campo usa los de PERCONSUR.</p>
+    <p class="page-lead">Datos que se ofrecen al capturar. Operadores y remolques son de cada empresa (División Campo usa los de PERCONSUR). Las unidades están en el catálogo único PERCONSUR (Administración → Unidades).</p>
     <section class="grp"><div class="grp-b list-actions">${ORDER.map((k) => {
       const d = cat.KINDS[k], n = d.perCompany ? PUERTO_COMPANIES.reduce((t, c) => t + cat.list(k, c).length, 0) : cat.list(k).length;
+      if (k === 'vehicles') return `<a class="row-btn" href="#/unidades"><span class="rb-ic">${icon.truck}</span><span>Unidades (catálogo único PERCONSUR)</span><small>${cat.listAll('vehicles').filter((v) => !v.mergedInto).length}</small>${icon.chev}</a>`;
       return `<a class="row-btn" href="#/catalogos/${k}"><span class="rb-ic">${{ operators: icon.person, vehicles: icon.truck, trailers: icon.trailer, places: icon.pin, plants: icon.building, terminals: icon.container, yards: icon.yard, loadingYards: icon.calendar }[k]}</span><span>${esc(d.title)}</span><small>${n}</small>${icon.chev}</a>`;
     }).join('')}
       <a class="row-btn" href="#/catalogos/tipos"><span class="rb-ic">${icon.catalog}</span><span>Tipos de contenedor (ISO)</span><small>${TIPOS.length}</small>${icon.chev}</a>
@@ -55,6 +56,8 @@ export async function isoScreen() {
 export async function catalogListScreen({ kind }) {
   const def = cat.KINDS[kind];
   if (!def) { go('/catalogos', { replace: true }); return null; }
+  /* Unidades: catálogo único con expediente (Administración → Unidades) */
+  if (kind === 'vehicles') { go('/unidades', { replace: true }); return null; }
   let company = getSetting('catCompany', 'perconsur'), text = '', ttype = 'todos';
   const s = screen(`<div class="page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Catálogos</span></button>

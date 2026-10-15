@@ -418,7 +418,7 @@ async function pickCatalog(k, st, { recentsFrom = [] } = {}) {
     else st.yardId = x.value;
   }
   if (k === 'vehicleId') {
-    const x = await openPicker({ title: 'Unidad', allowNew: false, placeholder: 'Buscar unidad o placas', current: st.vehicleId || '', items: [{ value: '__none', label: 'Sin unidad', sub: 'Asignar después' }, ...fleetUnits().map((u) => ({ value: u.id, label: u.label, sub: [u.placas, u.companyShort].filter(Boolean).join(' · ') }))] });
+    const x = await openPicker({ title: 'Unidad', allowNew: false, placeholder: 'Buscar unidad o placas', current: st.vehicleId || '', items: [{ value: '__none', label: 'Sin unidad', sub: 'Asignar después' }, ...fleetUnits().map((u) => ({ value: u.id, label: u.label, sub: u.placas }))] });
     if (x) st.vehicleId = x.value === '__none' ? null : x.value;
   }
   if (k === 'operatorId') {

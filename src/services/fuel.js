@@ -17,7 +17,7 @@ export const resetFuelCache = () => { cache = null; };
 function actor() { try { const s = JSON.parse(sessionStorage.getItem('pcs-session') || 'null'); return (s && s.user) || 'local'; } catch (e) { return 'local'; } }
 
 export function vehicles() {
-  return listAll('vehicles').map((v) => ({ id: v.id, eco: normEco(v.eco), label: ecoLabel(normEco(v.eco)), placas: v.placas || '', desc: v.desc || '', company: v.company, companyShort: getCompany(v.company).short }))
+  return listAll('vehicles').filter((v) => !v.mergedInto).map((v) => ({ id: v.id, eco: normEco(v.eco), label: ecoLabel(normEco(v.eco)), placas: v.placas || '', desc: v.desc || '', company: v.company, companyShort: getCompany(v.company).short }))
     .sort((a, b) => (+a.eco || 0) - (+b.eco || 0) || a.companyShort.localeCompare(b.companyShort));
 }
 export const vehicleById = (id) => vehicles().find((v) => v.id === id) || null;

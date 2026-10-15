@@ -11,10 +11,11 @@ export const OPERATION_MODULES = [
 ];
 export const ADMIN_MODULES = [
   { key: 'operadores', title: 'Operadores', desc: 'Información y control de operadores.', route: '/operadores', icon: 'people' },
+  { key: 'unidades', title: 'Unidades', desc: 'Catálogo único PERCONSUR: expedientes, fotografías, documentación y vigencias.', route: '/unidades', icon: 'truck' },
   { key: 'cobranza', title: 'Cobranza', desc: 'Viajes y demoras en planta por cobrar y pagados; reporte en PDF.', route: '/cobranza', icon: 'cash' },
   { key: 'tarifas', title: 'Tarifas', desc: 'Tarifas de transporte por apartado y división (Puerto o Campo), antes de impuestos, con edición y PDF.', route: '/tarifas', icon: 'tag' },
   { key: 'documentos', title: 'Documentos', desc: 'Historial de documentos generados.', route: '/documentos', icon: 'docs' },
-  { key: 'catalogos', title: 'Catálogos', desc: 'Unidades, remolques, operadores, destinos y demás registros.', route: '/catalogos', icon: 'catalog' },
+  { key: 'catalogos', title: 'Catálogos', desc: 'Operadores, remolques, destinos y demás registros.', route: '/catalogos', icon: 'catalog' },
 ];
 /* Ícono de cada división (mismo estilo de línea que el resto de la app) */
 export const DIVISION_ICON = { puerto: 'containers', campo: 'sprout' };

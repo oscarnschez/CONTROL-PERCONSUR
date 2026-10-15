@@ -23,10 +23,12 @@ import { loadGeocodes } from './geocode.js';
 import { loadFuel } from './fuel.js';
 import { loadMaintenance } from './maintenance.js';
 import { loadTariffs } from './tariffs.js';
+import { loadUnits } from './units.js';
 import { loadFulls } from './fulls.js';
 import { sanitizeSheet } from '../domain/tariffs/tariffs.js';
 import { sanitizeLoad, sanitizeDoc, sanitizeEvent } from '../domain/fulls/fulls.js';
 import { sanitizeDestState } from '../domain/geo/mexico.js';
+import { sanitizeUnitDoc, sanitizeUnitPhoto, sanitizeUnitEvent } from '../domain/units/units.js';
 import { ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS } from '../domain/maintenance/catalog.js';
 import { TIRE_LAYOUTS } from '../domain/maintenance/maintenance.js';
 import { SYNC_SETTINGS } from '../domain/sync/sync.js';
@@ -47,6 +49,8 @@ DATA_STORES.push('tariffSheets');
 DATA_STORES.push('loadingYards', 'fullContainerLoads', 'fullContainerDocuments', 'fullContainerEvents');
 /* Mapa de viajes (v13): entidad asignada a mano a textos de destino */
 DATA_STORES.push('destStates');
+/* Unidades (v14): documentos, fotografías e historial del expediente (los archivos van en el respaldo completo) */
+DATA_STORES.push('unitDocuments', 'unitPhotos', 'unitEvents');
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
    cambiar a dónde se envía la clave de este dispositivo), los avisos pendientes de rastreo de este dispositivo y la
    configuración de Información compartida (clave, papel e identificador de este dispositivo) */
@@ -121,6 +125,10 @@ export function sanitizeImport(data) {
   data.fullContainerEvents = rowsOf('fullContainerEvents').map(sanitizeEvent).filter(Boolean);
   /* Mapa de viajes: solo claves de entidad válidas ('01'–'32' o 'EXT') */
   data.destStates = rowsOf('destStates').map(sanitizeDestState).filter(Boolean);
+  /* Unidades: solo tipos de documento, fotografías y fuentes de fecha conocidas */
+  data.unitDocuments = rowsOf('unitDocuments').map(sanitizeUnitDoc).filter(Boolean);
+  data.unitPhotos = rowsOf('unitPhotos').map(sanitizeUnitPhoto).filter(Boolean);
+  data.unitEvents = rowsOf('unitEvents').map(sanitizeUnitEvent).filter(Boolean);
   return data;
 }
 
@@ -206,11 +214,16 @@ export async function importBackup(info) {
   const exVeh = await db.all(db.S.vehicles), vmap = new Map();
   data.vehicles = (data.vehicles || []).filter((v) => {
     if (exVeh.some((e) => e.id === v.id)) return true;
-    const twin = exVeh.find((e) => e.company === v.company && normEco(e.eco) === normEco(v.eco));
+    let twin = exVeh.find((e) => e.company === v.company && normEco(e.eco) === normEco(v.eco));
+    /* Si ese registro ya se unió a otra unidad del catálogo único, todo pasa a la unidad que se conservó */
+    for (let k = 0; twin && twin.mergedInto && k < 5; k++) twin = exVeh.find((e) => e.id === twin.mergedInto) || twin;
     if (twin) { vmap.set(v.id, twin.id); return false; }
     return true;
   });
   for (const r of data.fuelRecords || []) if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId);
+  /* Expediente de unidades: documentos, fotos, historial y sus archivos a la unidad existente */
+  for (const s of ['unitDocuments', 'unitPhotos', 'unitEvents']) for (const r of data[s] || []) if (vmap.has(r.unitId)) r.unitId = vmap.get(r.unitId);
+  for (const a of data.attachments || []) { const m = /^unit:(.+)$/.exec(a.owner || ''); if (m && vmap.has(m[1])) a.owner = 'unit:' + vmap.get(m[1]); }
   /* Taller: las órdenes, fallas, aceite y configuración se reasignan a la unidad existente (remolques, abajo) */
   for (const s of ['maintenanceOrders', 'maintenanceIssues', 'oilChanges', 'tireReplacements']) for (const r of data[s] || []) if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId);
   for (const r of data.maintenanceProfiles || []) { const m = /^v:(.+)$/.exec(r.id); if (m && vmap.has(m[1])) r.id = 'v:' + vmap.get(m[1]); }
@@ -282,6 +295,9 @@ export async function importBackup(info) {
       continue;
     }
     /* Mapa de viajes: la asignación más reciente de cada texto de destino */
+    /* Unidades: la versión más reciente de cada documento o fotografía; el historial solo se agrega */
+    if (s === 'unitDocuments' || s === 'unitPhotos') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || r.archivedAt || r.uploadedAt || 0) >= (cur.updatedAt || cur.archivedAt || cur.uploadedAt || 0)) await db.put(s, r); } continue; }
+    if (s === 'unitEvents') { for (const r of rows) if (!(await db.get(s, r.id))) await db.put(s, r); continue; }
     if (s === 'destStates') { for (const r of rows) { const cur = await db.get(s, r.key); if (!cur || (r.at || 0) > (cur.at || 0)) await db.put(s, r); } continue; }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     /* Taller: se conserva la versión más reciente de cada registro (la bitácora y las fotos solo se agregan) */
@@ -297,5 +313,5 @@ export async function importBackup(info) {
 }
 /* Vuelve a leer de la base local todo lo que las pantallas guardan en memoria (después de importar o de recibir la
    información compartida) */
-export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); await loadTariffs(true); await loadFulls(true); }
+export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); await loadTariffs(true); await loadFulls(true); await loadUnits(true); }
 const reload = reloadAll;

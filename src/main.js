@@ -28,6 +28,7 @@ import { initSync, startSync } from './services/sync.js';
 import { isReadOnly, READ_ONLY_TEXT } from './services/access.js';
 import { reloadAll } from './services/backup.js';
 import { syncSettingsScreen } from './ui/screens/syncSettings.js';
+import { tripsMapScreen } from './ui/screens/tripsMap.js';
 import { workshopScreen, workshopEquipmentScreen, workshopOrderScreen } from './ui/screens/workshop.js';
 import { workshopOrderReportScreen, workshopEquipmentReportScreen } from './ui/screens/workshopReport.js';
 import { loadMaintenance } from './services/maintenance.js';
@@ -126,6 +127,7 @@ function routes() {
   route('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/llenos', fullsScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/llenos/:id', fullDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/mapa', tripsMapScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/taller', workshopScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/taller/equipo/:type/:id', workshopEquipmentScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/taller/orden/:id', workshopOrderScreen, { name: 'op', tabs: true, tab: 'op' });

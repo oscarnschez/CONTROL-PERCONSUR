@@ -26,6 +26,7 @@ import { loadTariffs } from './tariffs.js';
 import { loadFulls } from './fulls.js';
 import { sanitizeSheet } from '../domain/tariffs/tariffs.js';
 import { sanitizeLoad, sanitizeDoc, sanitizeEvent } from '../domain/fulls/fulls.js';
+import { sanitizeDestState } from '../domain/geo/mexico.js';
 import { ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS } from '../domain/maintenance/catalog.js';
 import { TIRE_LAYOUTS } from '../domain/maintenance/maintenance.js';
 import { SYNC_SETTINGS } from '../domain/sync/sync.js';
@@ -44,6 +45,8 @@ DATA_STORES.push('tariffSheets');
 /* Control de llenos (v12): patios de carga, cargas programadas, sus documentos (el archivo viaja con los PDF en el respaldo
    completo; sin él, el documento se muestra como no disponible) y su historial */
 DATA_STORES.push('loadingYards', 'fullContainerLoads', 'fullContainerDocuments', 'fullContainerEvents');
+/* Mapa de viajes (v13): entidad asignada a mano a textos de destino */
+DATA_STORES.push('destStates');
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
    cambiar a dónde se envía la clave de este dispositivo), los avisos pendientes de rastreo de este dispositivo y la
    configuración de Información compartida (clave, papel e identificador de este dispositivo) */
@@ -116,6 +119,8 @@ export function sanitizeImport(data) {
   data.fullContainerLoads = rowsOf('fullContainerLoads').map(sanitizeLoad).filter(Boolean);
   data.fullContainerDocuments = rowsOf('fullContainerDocuments').map(sanitizeDoc).filter(Boolean);
   data.fullContainerEvents = rowsOf('fullContainerEvents').map(sanitizeEvent).filter(Boolean);
+  /* Mapa de viajes: solo claves de entidad válidas ('01'–'32' o 'EXT') */
+  data.destStates = rowsOf('destStates').map(sanitizeDestState).filter(Boolean);
   return data;
 }
 
@@ -276,6 +281,8 @@ export async function importBackup(info) {
       }
       continue;
     }
+    /* Mapa de viajes: la asignación más reciente de cada texto de destino */
+    if (s === 'destStates') { for (const r of rows) { const cur = await db.get(s, r.key); if (!cur || (r.at || 0) > (cur.at || 0)) await db.put(s, r); } continue; }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     /* Taller: se conserva la versión más reciente de cada registro (la bitácora y las fotos solo se agregan) */
     if (MT_STORES.includes(s)) { for (const r of rows) { if (!r || !r.id) continue; const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || r.at || 0) > (cur.updatedAt || cur.at || 0)) await db.put(s, r); } continue; }

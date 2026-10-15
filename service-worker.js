@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '5ab6cbfc63';
+const VERSION = '8fc9af2d16';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -30,6 +30,8 @@ const PRECACHE = [
   "./src/domain/fuel/fuel.js",
   "./src/domain/fuel/report.js",
   "./src/domain/fulls/fulls.js",
+  "./src/domain/geo/mexico.js",
+  "./src/domain/geo/tripsMap.js",
   "./src/domain/gps/fleet.js",
   "./src/domain/gps/geo.js",
   "./src/domain/gps/gps.js",
@@ -94,6 +96,7 @@ const PRECACHE = [
   "./src/services/theme.js",
   "./src/services/tracking.js",
   "./src/services/tripAttachments.js",
+  "./src/services/tripsMap.js",
   "./src/services/xlsx.js",
   "./src/ui/components/brandIntro.js",
   "./src/ui/components/charts.js",
@@ -144,6 +147,7 @@ const PRECACHE = [
   "./src/ui/screens/tariffs.js",
   "./src/ui/screens/tripDocs.js",
   "./src/ui/screens/tripImport.js",
+  "./src/ui/screens/tripsMap.js",
   "./src/ui/screens/viewer.js",
   "./src/ui/screens/wizardShell.js",
   "./src/ui/screens/workshop.js",
@@ -161,6 +165,7 @@ const PRECACHE = [
   "./styles/portal.css",
   "./styles/screens.css",
   "./styles/tokens.css",
+  "./styles/tripsmap.css",
   "./styles/workshop.css",
   "./assets/icons/apple-touch-icon.png",
   "./assets/icons/favicon-32.png",
@@ -171,6 +176,7 @@ const PRECACHE = [
   "./assets/brand/oasc-logo.png",
   "./assets/brand/osc-logo.png",
   "./assets/brand/perconsur-mark.png",
+  "./assets/geo/mx-estados.json",
   "./vendor/bwip-js-min.js",
   "./vendor/fonts/archivo-latin-ext.woff2",
   "./vendor/fonts/archivo-latin.woff2",

@@ -120,6 +120,10 @@ function showLogin() {
         <p class="login-msg" id="lg-msg" role="alert" aria-live="assertive"></p>
         <button type="submit" class="btn-primary block lg" id="lg-go"><span>Entrar</span></button>
       </form>
+      <aside class="login-notice" aria-labelledby="lg-notice-t">
+        <span class="ln-ic">${icon.shield}</span>
+        <p><b id="lg-notice-t">ACCESO RESTRINGIDO</b>Esta herramienta digital es de uso único y exclusivo para personal autorizado por PERCONSUR. El acceso y uso por personas no autorizadas está prohibido.</p>
+      </aside>
       <p class="login-foot">Versión ${APP_VERSION} | ${APP_BUILD}<br><small class="legal-copy">${copyrightText()}</small></p>
     </div>`;
   document.body.appendChild(root);

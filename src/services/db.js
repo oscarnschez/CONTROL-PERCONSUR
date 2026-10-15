@@ -23,10 +23,12 @@
  *   loadingYards, fullContainerLoads, fullContainerDocuments, fullContainerEvents   Control de llenos (v12): patios e
  *     instalaciones de carga, cargas programadas (relacionadas por IDs con terminales, patios, unidades, operadores y
  *     remolques), sus documentos uno por uno (el archivo vive en attachments) y su historial
+ *   destStates   Mapa de viajes (v13): entidad asignada a mano a un texto de destino { key (texto normalizado), text,
+ *     code ('01'–'32' o 'EXT'), by, at }; no modifica el viaje
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 12;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos */
+const DB_VERSION = 13;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -43,6 +45,7 @@ export const S = {
   maintenanceParts: 'maintenanceParts',
   tariffSheets: 'tariffSheets',
   loadingYards: 'loadingYards', fullContainerLoads: 'fullContainerLoads', fullContainerDocuments: 'fullContainerDocuments', fullContainerEvents: 'fullContainerEvents',
+  destStates: 'destStates',
 };
 
 let dbp = null;
@@ -109,6 +112,8 @@ export function openDB() {
       mk(S.fullContainerLoads, { keyPath: 'id' }, [['containerNumber', 'containerNumber'], ['scheduledDate', 'scheduledDate'], ['vehicleId', 'vehicleId'], ['operatorId', 'operatorId'], ['status', 'status']]);
       mk(S.fullContainerDocuments, { keyPath: 'id' }, [['loadId', 'loadId']]);
       mk(S.fullContainerEvents, { keyPath: 'id' }, [['loadId', 'loadId'], ['createdAt', 'createdAt']]);
+      /* v13 — Mapa de viajes: entidad asignada a mano a un texto de destino que no se pudo identificar (no cambia el viaje) */
+      mk(S.destStates, { keyPath: 'key' });
     };
     req.onsuccess = () => {
       const db = req.result;

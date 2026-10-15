@@ -21,7 +21,7 @@ const CLUSTER_MIN = 25, CLUSTER_PX = 54, CLUSTER_MAX_ZOOM = 11.5, CULL_MIN = 60,
  *         padding() → {top,right,bottom,left} (espacio que tapan los paneles), onMapClick() }
  */
 export async function createFleetMap(container, { onSelect = () => {}, onFit = null, popupHTML = null, padding = () => ({}), onMapClick = null } = {}) {
-  const base = await createBaseMap(container);
+  const base = await createBaseMap(container, { views: true });
   const { ml, map } = base;
   const markers = new Map();
   let sel = null, follow = false, fitted = false, pendingFit = false, gone = false, popups = !!popupHTML;
@@ -39,7 +39,7 @@ export async function createFleetMap(container, { onSelect = () => {}, onFit = n
   /* Centro visible (descontando paneles) como desplazamiento: no deja un margen fijo en el mapa */
   const offset = () => { const p = pad(0); return [Math.round((p.left - p.right) / 2), Math.round((p.top - p.bottom) / 2)]; };
 
-  const controls = new MapControls({ onFit: () => (onFit ? onFit() : api.fitFleet()), onCenter: () => { if (sel) api.focus(sel); }, fitLabel: 'Ver toda la flota', centerLabel: 'Centrar unidad' });
+  const controls = new MapControls({ onFit: () => (onFit ? onFit() : api.fitFleet()), onCenter: () => { if (sel) api.focus(sel); }, fitLabel: 'Ver toda la flota', centerLabel: 'Centrar unidad', base });
   map.addControl(controls, 'top-right');
   controls.setCenterEnabled(false);
   map.on('dragstart', () => { follow = false; });
@@ -155,6 +155,9 @@ export async function createFleetMap(container, { onSelect = () => {}, onFit = n
 
   const api = {
     ml, map, el: container,
+    /* Vista de mapa o satelital ('map'|'satellite') */
+    get view() { return base.view; },
+    setView: (v) => base.setView(v),
     setVehicles,
     selected: () => sel,
     count: () => markers.size,

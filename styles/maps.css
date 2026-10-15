@@ -59,7 +59,21 @@
 .mc-b .ic{width:21px;height:21px}
 .mc-b:active{background:var(--fill,#E9EBF0)}
 .mc-b:disabled{color:var(--muted,#5F6879);opacity:.45;cursor:default}
-.maplibregl-ctrl-top-right .mc{margin:10px 10px 0 0}
+.maplibregl-ctrl-top-right .mc{margin:10px 10px 0 0;align-items:flex-end}
+/* Mapa / Satélite: miniatura de la vista a la que se cambia, con su nombre */
+.mc-vg{width:60px;padding:3px}
+.mc-v{position:relative;display:block;width:54px;height:54px;padding:0;border:0;border-radius:calc(var(--r-sm) - 3px);overflow:hidden;cursor:pointer;color:#fff;
+  font:700 var(--fs-caption)/1 var(--font,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif)}
+.mc-v-th{position:absolute;inset:0;background:
+  linear-gradient(118deg,transparent 46%,rgba(255,205,110,.95) 47%,rgba(255,205,110,.95) 51%,transparent 52%),
+  radial-gradient(circle at 25% 30%,#5d7a3e 0 18%,transparent 19%),radial-gradient(circle at 78% 72%,#4a6a35 0 22%,transparent 23%),
+  radial-gradient(circle at 70% 20%,#8a7a55 0 16%,transparent 17%),linear-gradient(160deg,#6f7f4a,#4f6237 55%,#7c6e4c)}
+.mc-v.is-sat .mc-v-th{background:
+  linear-gradient(118deg,transparent 45%,#EFAF86 46%,#FCE2CF 47.5%,#FCE2CF 50.5%,#EFAF86 52%,transparent 53%),
+  linear-gradient(28deg,transparent 60%,#fff 61%,#fff 64%,transparent 65%),
+  radial-gradient(circle at 22% 78%,#C5D2EA 0 20%,transparent 21%),radial-gradient(circle at 80% 25%,#E1E9DF 0 18%,transparent 19%),#F1F3F7}
+.mc-v-t{position:absolute;left:0;right:0;bottom:0;padding:14px 2px 4px;background:linear-gradient(transparent,rgba(10,14,20,.78));text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.mc-v:focus-visible{outline:3px solid var(--focus,#F26F22);outline-offset:-3px}
 
 /* Tarjeta al tocar un marcador */
 .vm-pop .maplibregl-popup-content{padding:12px 14px 12px;border-radius:var(--r);background:var(--surface,#fff);color:var(--ink,#1A2233);box-shadow:var(--shadow-3,0 10px 30px rgba(15,25,45,.24));font-family:var(--font,inherit)}

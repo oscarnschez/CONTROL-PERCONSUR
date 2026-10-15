@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '97f6307e24';
+const VERSION = 'c1704d596d';
 const PRECACHE = [
   "./",
   "./index.html",

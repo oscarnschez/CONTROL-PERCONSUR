@@ -17,6 +17,8 @@ import { mountHomeOps } from './logistics.js';
 import { mountCoverage } from './tripsMap.js';
 import * as sync from '../../services/sync.js';
 import { whenText } from '../../domain/sync/sync.js';
+import * as al from '../../services/alerts.js';
+import { onUnitsChange } from '../../services/units.js';
 
 export function greeting(d = new Date()) { const h = d.getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; }
 
@@ -37,6 +39,7 @@ export async function homeScreen() {
   const recent = docs.slice(0, 4);
   const s = screen(`<div class="page wide home">
     <header class="home-top">
+      <a class="home-bell" href="#/avisos" data-bell aria-label="Avisos">${icon.bell}<span class="bell-n" data-bell-n hidden></span></a>
       <div class="brandline"><img src="./assets/brand/perconsur-mark.png" alt="" class="brand-mark"><span class="wordmark">PERCONSUR</span></div>
       <div class="band" aria-hidden="true"></div>
       <h1 class="greet">${greeting()}</h1>
@@ -86,7 +89,12 @@ export async function homeScreen() {
   };
   drawPill();
   const unSync = sync.onSyncChange(drawPill);
-  s.cleanup = () => { unSync(); unCov(); if (typeof unOps === 'function') unOps(); };
+  /* Avisos sin ver: llegadas y salidas nuevas + documentos vencidos o por vencer en 7 días (hasta abrir Avisos ese día) */
+  const bell = root.querySelector('[data-bell]'), bn = root.querySelector('[data-bell-n]');
+  const drawBell = () => { const n = al.unseenCount(); bn.hidden = !n; bn.textContent = n > 99 ? '99+' : String(n); bell.setAttribute('aria-label', n ? `Avisos: ${n} sin ver` : 'Avisos'); };
+  drawBell();
+  const unAl = al.onAlertsChange(drawBell), unUn = onUnitsChange(drawBell);
+  s.cleanup = () => { unSync(); unCov(); unAl(); unUn(); if (typeof unOps === 'function') unOps(); };
   on(root, 'click', '[data-new]', (e, b) => (b.dataset.new === 'puerto' ? startPuerto() : startCampo()));
   on(root, 'click', '[data-continue]', (e, b) => { const d = pend.find((x) => x.id === b.dataset.continue); if (d) go(draftRoute(d)); });
   on(root, 'click', '[data-discard]', async (e, b) => {

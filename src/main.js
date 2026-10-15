@@ -24,6 +24,8 @@ import { loadFulls } from './services/fulls.js';
 import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
 import { gpsMonitorScreen } from './ui/screens/gpsMonitor.js';
 import { startTracking } from './services/tracking.js';
+import { startAlerts } from './services/alerts.js';
+import { alertsScreen, alertsSettingsScreen, geofencesScreen } from './ui/screens/alerts.js';
 import { initSync, startSync } from './services/sync.js';
 import { isReadOnly, READ_ONLY_TEXT } from './services/access.js';
 import { reloadAll } from './services/backup.js';
@@ -161,6 +163,9 @@ function routes() {
   route('/tarifario', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });   /* dirección de la versión 1.21 */
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/ajustes/avisos', alertsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/ajustes/avisos/geocercas', geofencesScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/avisos', alertsScreen, { name: 'alerts', tabs: true, tab: 'home' });
   route('/ajustes/compartir', syncSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/puerto/:company/:step', capture(puertoWizard), { name: 'wizard' });
@@ -213,6 +218,11 @@ async function boot() {
     startTracking();
     /* Información compartida: el capturista publica sus cambios; la consulta recibe los del capturista */
     startSync();
+    /* Avisos: publica al Worker lo que hay que vigilar y consulta llegadas y salidas (si el GPS está configurado) */
+    startAlerts().catch((e) => console.warn('avisos', e));
+    /* Aviso tocado con la app abierta: el service worker pide ir a la pantalla del aviso */
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'pcs-nav' && /^#\/[\w/?=&.-]*$/.test(e.data.hash || '')) location.hash = e.data.hash; });
+    window.addEventListener('alerts:applied', (e) => toast(`Cambio automático por geocerca: ${(e.detail || []).join(' · ')}`, { type: 'info', ms: 6000 }));
     /* Una captura que llegó a la base en modo consulta: aviso y se descarta lo que quedó en memoria */
     window.addEventListener('unhandledrejection', (e) => {
       if (!e.reason || !e.reason.readOnly) return;

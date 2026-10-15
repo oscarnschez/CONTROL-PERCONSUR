@@ -1,0 +1,69 @@
+/*
+ * Avisos (src/ui/screens/alerts.js): campana de Inicio, centro de avisos, Ajustes → Avisos, geocercas, y las llegadas y
+ * salidas en el detalle de Logística. Colores de estado de styles/units.css (.t-ok, .t-warn, .t-alert, .t-danger, .t-info).
+ */
+/* Campana en Inicio */
+.home-top{position:relative}
+.home-bell{position:absolute;top:2px;right:0;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:var(--ink);background:var(--surface);box-shadow:var(--shadow-1)}
+.home-bell .ic{width:22px;height:22px}
+.home-bell:active{background:var(--fill)}
+.bell-n{position:absolute;top:-2px;right:-4px;min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--danger);color:var(--on-color);font:700 var(--fs-caption)/20px var(--font);text-align:center;box-shadow:0 0 0 2px var(--canvas)}
+
+/* Aviso para activar notificaciones o configurar el GPS */
+.al-hint{display:flex;align-items:center;gap:12px;padding:12px 14px;margin:0 0 16px;border-radius:var(--r);background:var(--blue-t);color:var(--ink)}
+.al-hint>.ic:first-child{flex:none;width:24px;height:24px;color:var(--tint)}
+.al-hint span{flex:1;display:flex;flex-direction:column;gap:2px}
+.al-hint small{color:var(--ink-2);font-size:var(--fs-footnote)}
+.al-hint>.ic:last-child{flex:none;width:18px;height:18px;color:var(--ink-2)}
+
+/* Vencimientos: cuatro indicadores */
+.al-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px}
+.al-tile{display:flex;flex-direction:column;gap:2px;padding:10px 10px 9px;border-radius:var(--r-sm);background:var(--ub);color:var(--uc)}
+.al-tile b{font:800 var(--fs-title2)/1.1 var(--font);font-variant-numeric:tabular-nums}
+.al-tile span{font-size:var(--fs-caption);font-weight:600;line-height:1.25}
+.al-tile.zero{background:var(--fill);color:var(--ink-2)}
+@media (max-width:380px){.al-tiles{grid-template-columns:repeat(2,1fr)}}
+
+/* Llegadas y salidas */
+.al-day{margin:18px 4px 8px;font-size:var(--fs-footnote);font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
+.al-chk{margin:-4px 4px 8px;display:flex;align-items:center;gap:6px}
+.al-chk .ic{width:16px;height:16px;color:var(--danger)}
+.al-ic.in{color:var(--ok);background:var(--ok-t)}
+.al-ic.out{color:var(--tint);background:var(--blue-t)}
+.al-ev{position:relative;align-items:flex-start}
+.al-ev.new::before{content:"";position:absolute;left:4px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--danger)}
+.al-t{margin-left:auto;font-size:var(--fs-footnote);font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.al-ok{display:inline-flex;align-items:center;gap:4px;color:var(--ok);font-weight:600}
+.al-ok .ic{width:14px;height:14px}
+.al-sug{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.al-go{flex:none;display:grid;place-items:center;width:44px;min-height:44px;color:var(--ink-2)}
+.al-go .ic{width:18px;height:18px}
+
+/* Ajustes → Avisos */
+.al-state{display:flex;align-items:flex-start;gap:12px;padding:12px 0}
+.al-state>.ic{flex:none;width:24px;height:24px;color:var(--ink-2)}
+.al-state.ok>.ic{color:var(--ok)}
+.al-state.warn>.ic{color:var(--warn)}
+.al-state span{display:flex;flex-direction:column;gap:3px}
+.al-state small{color:var(--ink-2);font-size:var(--fs-footnote);line-height:1.4}
+
+/* Geocercas */
+.al-def{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-footnote);color:var(--ink-2)}
+.al-rsel{display:inline-flex;min-width:104px}
+.al-rsel .in{min-height:40px;padding-right:30px;font-size:var(--fs-subhead)}
+.al-zone{align-items:flex-start;gap:12px}
+.al-zone.off .row-tx{opacity:.6}
+.al-zone .sw{flex:none;margin-top:6px}
+.al-zacts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+
+/* Detalle de Logística: sugerencia y estancias */
+.al-sugbox{display:flex;gap:12px;padding:14px;margin:0 0 16px;border-radius:var(--r);background:var(--ok-t);color:var(--ink)}
+.al-sugbox>.ic{flex:none;width:24px;height:24px;color:var(--ok)}
+.al-sugbox div{display:flex;flex-direction:column;gap:3px}
+.al-sugbox small{color:var(--ink-2);font-size:var(--fs-footnote);line-height:1.4}
+.al-stays{list-style:none;margin:0;padding:4px 0 0}
+.al-stays li{position:relative;display:flex;flex-direction:column;gap:2px;padding:8px 0 10px 22px;border-left:2px solid var(--line);margin-left:6px}
+.al-stays li::before{content:"";position:absolute;left:-7px;top:12px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--tint)}
+.al-stays li.open::before{background:var(--ok);border-color:var(--ok)}
+.al-stays span{font-size:var(--fs-subhead);color:var(--ink)}
+.al-stays small{font-size:var(--fs-footnote);color:var(--ink-2)}

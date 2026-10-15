@@ -29,6 +29,8 @@ import { sanitizeSheet } from '../domain/tariffs/tariffs.js';
 import { sanitizeLoad, sanitizeDoc, sanitizeEvent } from '../domain/fulls/fulls.js';
 import { sanitizeDestState } from '../domain/geo/mexico.js';
 import { sanitizeUnitDoc, sanitizeUnitPhoto, sanitizeUnitEvent } from '../domain/units/units.js';
+import { sanitizeGeoEvent } from '../domain/alerts/alerts.js';
+import { loadAlerts } from './alerts.js';
 import { ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS } from '../domain/maintenance/catalog.js';
 import { TIRE_LAYOUTS } from '../domain/maintenance/maintenance.js';
 import { SYNC_SETTINGS } from '../domain/sync/sync.js';
@@ -51,6 +53,8 @@ DATA_STORES.push('loadingYards', 'fullContainerLoads', 'fullContainerDocuments',
 DATA_STORES.push('destStates');
 /* Unidades (v14): documentos, fotografías e historial del expediente (los archivos van en el respaldo completo) */
 DATA_STORES.push('unitDocuments', 'unitPhotos', 'unitEvents');
+/* Avisos (v15): llegadas y salidas en las geocercas */
+DATA_STORES.push('geoEvents');
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
    cambiar a dónde se envía la clave de este dispositivo), los avisos pendientes de rastreo de este dispositivo y la
    configuración de Información compartida (clave, papel e identificador de este dispositivo) */
@@ -129,6 +133,8 @@ export function sanitizeImport(data) {
   data.unitDocuments = rowsOf('unitDocuments').map(sanitizeUnitDoc).filter(Boolean);
   data.unitPhotos = rowsOf('unitPhotos').map(sanitizeUnitPhoto).filter(Boolean);
   data.unitEvents = rowsOf('unitEvents').map(sanitizeUnitEvent).filter(Boolean);
+  /* Avisos: llegadas y salidas con la forma esperada */
+  data.geoEvents = rowsOf('geoEvents').map(sanitizeGeoEvent).filter(Boolean);
   return data;
 }
 
@@ -297,7 +303,7 @@ export async function importBackup(info) {
     /* Mapa de viajes: la asignación más reciente de cada texto de destino */
     /* Unidades: la versión más reciente de cada documento o fotografía; el historial solo se agrega */
     if (s === 'unitDocuments' || s === 'unitPhotos') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || r.archivedAt || r.uploadedAt || 0) >= (cur.updatedAt || cur.archivedAt || cur.uploadedAt || 0)) await db.put(s, r); } continue; }
-    if (s === 'unitEvents') { for (const r of rows) if (!(await db.get(s, r.id))) await db.put(s, r); continue; }
+    if (s === 'unitEvents' || s === 'geoEvents') { for (const r of rows) if (!(await db.get(s, r.id))) await db.put(s, r); continue; }
     if (s === 'destStates') { for (const r of rows) { const cur = await db.get(s, r.key); if (!cur || (r.at || 0) > (cur.at || 0)) await db.put(s, r); } continue; }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     /* Taller: se conserva la versión más reciente de cada registro (la bitácora y las fotos solo se agregan) */
@@ -313,5 +319,5 @@ export async function importBackup(info) {
 }
 /* Vuelve a leer de la base local todo lo que las pantallas guardan en memoria (después de importar o de recibir la
    información compartida) */
-export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); await loadTariffs(true); await loadFulls(true); await loadUnits(true); }
+export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); await loadTariffs(true); await loadFulls(true); await loadUnits(true); await loadAlerts(true); }
 const reload = reloadAll;

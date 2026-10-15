@@ -8,6 +8,7 @@ import {
 } from '../src/domain/units/units.js';
 import { detectPeriod, findRanges, coveredDays, extraFields, cleanText } from '../src/domain/units/complement.js';
 import { readExif, exifDate, buildExifJpeg } from '../src/domain/units/exif.js';
+import { extractPolicy, insurerOf, vinCheck, bestVin } from '../src/domain/units/policy.js';
 import { SYNC_STORES, READER_WRITABLE } from '../src/domain/sync/sync.js';
 const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
 const T = '2026-10-20';
@@ -140,3 +141,31 @@ ok(checkUnit({ eco: '4' }, V, 'p4').eco === undefined || checkUnit({ eco: '4' },
 ok(sanitizeUnitDoc({ id: 'x', unitId: 'u', docType: 'otro' }) === null && sanitizeUnitDoc({ id: 'x', unitId: 'u', docType: 'insurance', validUntil: 'mañana', verificationStatus: 'hackeado' }).validUntil === null && sanitizeUnitDoc({ id: 'x', unitId: 'u', docType: 'insurance', verificationStatus: 'hackeado' }).verificationStatus === 'pending', 'respaldo: tipos y fechas válidos; estado desconocido → pendiente');
 ok(sanitizeUnitPhoto({ id: 'x', unitId: 'u', photoType: 'front', capturedAt: '2026-10-12T14:32:05', captureDateSource: 'exif' }).captureDateSource === 'exif' && sanitizeUnitPhoto({ id: 'x', unitId: 'u', photoType: 'front', capturedAt: 'ayer', captureDateSource: 'exif' }).captureDateSource === 'unknown', 'respaldo: la fuente de la fecha se conserva solo con fecha válida');
 ok(['unitDocuments', 'unitPhotos', 'unitEvents', 'vehicles'].every((k) => SYNC_STORES.includes(k)) && !READER_WRITABLE.has('unitDocuments'), 'el expediente se comparte entre dispositivos; el modo consulta no lo modifica');
+
+/* Póliza de seguro: formato de referencia (BBVA Seguros, «Póliza de seguro flotillas»), con datos ficticios */
+const POL = `PÓLIZA DE SEGURO
+FLOTILLAS
+DATOS DE LA PÓLIZA
+Número de Póliza: 999B12345X Número de Certificado: 999B123450
+Fecha de Emisión: 05/01/2026 Inicio de Vigencia de la póliza Fin de vigencia de la póliza
+Desde las 12 :00 hrs del 06/03/2026 Hasta las 12 :00 hrs del 06/03/2027
+Inicio de Vigencia del Inciso Fin de vigencia del Inciso
+Desde las 12 :00 hrs del 10/03/2026 Hasta las 12 :00 hrs del 10/03/2027
+Moneda: Nacional Forma de Pago: MENSUAL
+DATOS DEL BIEN ASEGURADO
+Descripción: TRACTOCAMION DE PRUEBA
+Modelo: 2018 Servicio: COMERCIAL Uso: SERVICIO PUBLICO Clave: TR0000
+Zona de Circulación: JALISCO Serie: 1HTMMAAR3KH000123 No. Motor:`;
+let pz = extractPolicy(POL, { header: 'BBVA\nSeguros' });
+ok(pz.insurer === 'BBVA Seguros' && pz.policyNumber === '999B12345X', 'póliza: aseguradora (logotipo) y número de póliza (no el de certificado)');
+ok(pz.validFrom === '2026-03-06' && pz.validUntil === '2027-03-06' && pz.vigenciaDe === 'póliza' && pz.issueDate === '2026-01-05', 'vigencia de la PÓLIZA (no la del inciso ni la fecha de emisión)');
+ok(pz.year === '2018' && pz.vin === '1HTMMAAR3KH000123' && pz.vinOk, 'año (Modelo) y número de serie con dígito verificador correcto');
+ok(extractPolicy(POL.replace(/Desde las 12 :00 hrs del 06\/03\/2026 Hasta las 12 :00 hrs del 06\/03\/2027\n/, '')).validFrom === '2026-03-10', 'sin vigencia de la póliza se usa la del inciso');
+ok(extractPolicy(POL.split('\n').join('\n').replace('Número de Póliza: 999B12345X Número de Certificado: 999B123450', 'Número de Póliza:\n999B12345X')).policyNumber === '999B12345X', 'valor en el renglón siguiente (tabla)');
+ok(insurerOf('= BVA PÓLIZA DE SEGURO\nFLOTILLAS\nSeguros') === 'BBVA Seguros' && insurerOf('GNP Seguros') === 'GNP Seguros' && insurerOf('Quálitas Compañía de Seguros') === 'Quálitas' && insurerOf('Seguro de autos') === '', 'aseguradoras conocidas (también con el logotipo mal leído); si no se reconoce, vacío');
+pz = extractPolicy(POL.replace('999B12345X N', '995B12345X N'), { extra: { policy: ['Número de Póliza: 999B12345X | x', 'Número de Póliza: 9 99B12345X | x', 'Número de Póliza: 9995B12345X'] } });
+ok(pz.policyNumber === '999B12345X' && /2 de 4/.test(pz.evidence.policyNumber), 'OCR: el número de póliza más repetido entre las relecturas gana (5 por 9, dígito separado)');
+ok(vinCheck('1HTMMAAR3KH000123') && !vinCheck('1HTMMAAR4KH000123') && !vinCheck('1HTMMAAR3KH00012'), 'dígito verificador del VIN');
+ok(bestVin(['1IHTMMAAR3KH000123NO']).vin === '1HTMMAAR3KH000123' && bestVin(['1HTMMAAR3KH0OO123']).vin === '1HTMMAAR3KH000123', 'OCR: carácter de más (I) y O por 0 se corrigen con el dígito verificador');
+ok(bestVin(['1HTMMAAR3KH000123', '1HTMMAAR3KHO00123', 'IHTMMAAR3KH000I23']).ok && !bestVin(['1HTMMAAR4KH000123']).ok, 'varias lecturas: gana la más cercana a todas; una sola lectura que no verifica no se «corrige» al azar');
+ok(extractPolicy('Documento sin datos').found.length === 0, 'sin datos legibles: nada detectado (no se inventa)');

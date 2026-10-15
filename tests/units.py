@@ -41,6 +41,21 @@ def pdf_text(pg, lines, path):
     data=pg.evaluate('''async(L)=>{if(!window.jspdf) await new Promise((res,rej)=>{const s=document.createElement('script');s.src='./vendor/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});
       const doc=new window.jspdf.jsPDF({unit:'pt',format:'letter'}); doc.setFontSize(9); for(const [x,y,s] of L) doc.text(s,x,y); return Array.from(new Uint8Array(doc.output('arraybuffer')));}''',lines)
     open(path,'wb').write(bytes(data)); return path
+def pdf_policy(pg, lines, path):
+    """PDF con texto y el logotipo de la aseguradora como IMAGEN (como en los PDF reales)"""
+    data=pg.evaluate('''async(L)=>{if(!window.jspdf) await new Promise((res,rej)=>{const s=document.createElement('script');s.src='./vendor/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});
+      const c=document.createElement('canvas');c.width=420;c.height=170;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,420,170);x.fillStyle='#1a2a6c';x.font='bold 84px Arial';x.fillText('BBVA',10,90);x.font='34px Arial';x.fillText('Seguros',170,150);
+      const doc=new window.jspdf.jsPDF({unit:'pt',format:'letter'}); doc.addImage(c.toDataURL('image/png'),'PNG',24,18,150,61); doc.setFontSize(13); doc.text('PÓLIZA DE SEGURO',420,40); doc.text('FLOTILLAS',480,56); doc.setFontSize(9);
+      for(const [x2,y,s] of L) doc.text(s,x2,y); return Array.from(new Uint8Array(doc.output('arraybuffer')));}''',lines)
+    open(path,'wb').write(bytes(data)); return path
+POL_HTML='''<!doctype html><meta charset="utf-8"><body style="margin:0;background:#fff;font:15px Arial;color:#111;width:900px">
+<div style="padding:18px 24px;position:relative"><div style="font:bold 54px Arial;color:#1a2a6c;line-height:1">BBVA</div><div style="font:20px Arial;color:#1a2a6c;margin-left:100px">Seguros</div>
+<div style="position:absolute;right:24px;top:24px;font:bold 20px Arial;text-align:right">PÓLIZA DE SEGURO<br>FLOTILLAS</div>
+<div style="margin-top:24px;background:#ddd;font-weight:bold;padding:4px">DATOS DE LA PÓLIZA</div>
+<table style="width:100%;margin:6px 0"><tr><td>Número de Póliza: 482A61079A</td><td>Número de Certificado: 482A610794</td><td></td></tr>
+<tr><td>Fecha de Emisión: 20/01/2026</td><td>Inicio de Vigencia de la póliza<br>Desde las 12 :00 hrs del 01/02/2026</td><td>Fin de vigencia de la póliza<br>Hasta las 12 :00 hrs del 01/02/2027</td></tr></table>
+<div style="margin-top:14px;background:#ddd;font-weight:bold;padding:4px">DATOS DEL BIEN ASEGURADO</div>
+<p>Descripción: TRACTOCAMION DE PRUEBA</p><p>Modelo: 2019 &nbsp;&nbsp;&nbsp; Servicio: COMERCIAL</p><p>Zona de Circulación: JALISCO &nbsp;&nbsp;&nbsp; Serie: 3AKJGLDR8KSKB4321 &nbsp;&nbsp; No. Motor:</p></div></body>'''
 def ref_lines(d1,d2,timbrado):
     """Mismo acomodo que el complemento de referencia (BBVA Seguros), con datos ficticios"""
     return [[380,40,'Serie: FF'],[380,52,'Folio: 000000001'],[380,64,f'Fecha y Hora de Timbrado: {timbrado}T01:18:51'],[150,100,'COMPLEMENTO PARA LA RECEPCION DE PAGOS'],
@@ -142,15 +157,43 @@ try:
     ok(pg.locator('.fv-img').count()==1 and pg.locator('.fv [data-act="download"]').count()==1,'79.7/9) abrir imagen en el visor y descargar')
     with pg.expect_download() as dl: pg.locator('.fv [data-act="download"]').click()
     ok(dl.value.suggested_filename=='anexo.png' and os.path.getsize(dl.value.path())==os.path.getsize(os.path.join(HERE,'anexo.png')),'79.11) la descarga es el archivo original sin modificar'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
-    # Póliza (PDF): sugerencias del documento que se confirman
-    pol=pdf_text(pg,[[40,60,'POLIZA DE SEGURO DE AUTOMOVILES'],[40,80,'Numero de poliza: AB12345678'],[40,100,'Vigencia desde: 01/01/2026 Hasta: 31/12/2026'],[40,120,'Fecha de emision: 15/12/2025']],os.path.join(FD,'poliza.pdf'))
+    # Póliza (PDF con el acomodo de la póliza de referencia y datos ficticios; el logotipo es imagen → se lee con OCR)
+    pol=pdf_policy(pg,[[30,130,'DATOS DE LA PÓLIZA'],[30,150,'Número de Póliza: 999B12345X'],[250,150,'Número de Certificado: 999B123450'],
+      [30,170,'Fecha de Emisión: 15/12/2025'],[250,170,'Inicio de Vigencia de la póliza'],[420,170,'Fin de vigencia de la póliza'],[250,184,'Desde las 12 :00 hrs del 01/01/2026'],[420,184,'Hasta las 12 :00 hrs del 31/12/2026'],
+      [250,210,'Inicio de Vigencia del Inciso'],[420,210,'Fin de vigencia del Inciso'],[250,224,'Desde las 12 :00 hrs del 05/01/2026'],[420,224,'Hasta las 12 :00 hrs del 31/12/2026'],
+      [30,300,'DATOS DEL BIEN ASEGURADO'],[30,320,'Descripción: TRACTOCAMION DE PRUEBA'],[30,340,'Modelo: 2020'],[200,340,'Servicio: COMERCIAL'],
+      [30,360,'Zona de Circulación: JALISCO'],[200,360,'Serie: 1HTMMAAR3KH000123'],[380,360,'No. Motor:']],os.path.join(FD,'poliza.pdf'))
     pg.locator('[data-up="insurance"]').click(); pg.wait_for_selector('[data-pick="file"]'); choose(pg,'[data-pick="file"]',pol)
-    pg.wait_for_selector('[data-det]',timeout=20000); pg.wait_for_timeout(300)
-    det=pg.locator('[data-det]').inner_text()
-    ok('01/01/2026' in det and '31/12/2026' in det,'79.2) póliza: fechas sugeridas desde el documento')
-    pg.locator('[data-confirm]').click(); pg.fill('.uf-dflow [name=insurer]','Aseguradora de Prueba'); pg.fill('.uf-dflow [name=policyNumber]','AB12345678'); pg.locator('[data-savedoc]').click(); pg.wait_for_timeout(800)
+    pg.wait_for_selector('[data-pol]',timeout=90000); pg.wait_for_timeout(300)
+    det=pg.locator('[data-pol]').inner_text()
+    ok('DATOS DETECTADOS EN LA PÓLIZA' in det and 'BBVA Seguros' in det and '999B12345X' in det and '01/01/2026 — 31/12/2026' in det,'79.2) póliza: aseguradora (logotipo leído con OCR), número de póliza (no el de certificado) y vigencia de la póliza')
+    ok('Año: 2020 (ya coincide con la unidad)' in det and '1HTMMAAR3KH000123' in det and 'Dígito verificador correcto' in det and 'emisión 15/12/2025 (no es la vigencia)' in det,'año que ya coincide; número de serie verificado; la fecha de emisión no es la vigencia')
+    vchk=pg.locator('[data-pol] [data-ua="vin"]')
+    ok(vchk.count()==1 and not vchk.is_checked() and '3AKJHHDR1KSKA1234' in det,'la unidad ya tiene otro número de serie: no se reemplaza sin marcarlo')
+    shot(pg,'05a_poliza_detectada')
+    vchk.check(); pg.locator('[data-polconfirm]').click(); pg.wait_for_timeout(200)
+    ok(pg.locator('.uf-dflow [name=insurer]').input_value()=='BBVA Seguros' and pg.locator('.uf-dflow [name=policyNumber]').input_value()=='999B12345X' and pg.locator('.uf-dflow [name=validUntil]').input_value()=='2026-12-31','«Confirmar y llenar» completa aseguradora, póliza y vigencia')
+    pg.locator('[data-savedoc]').click(); pg.wait_for_timeout(1000)
     ins=pg.locator('.uf-doc[data-dtype="insurance"]').inner_text()
     ok('Vigente' in ins and '31 de diciembre de 2026' in ins and '72 días restantes' in ins,'póliza confirmada: Vigente, vence 31 dic 2026, 72 días restantes')
+    tab(pg,'info')
+    ok('1HTMMAAR3KH000123' in pg.locator('.uf-sec').inner_text() and '2020' in pg.locator('.uf-sec').inner_text(),'el número de serie de la póliza quedó en la ficha de la unidad')
+    tab(pg,'docs')
+    # Póliza en IMAGEN (OCR completo) en otra unidad sin año ni número de serie: se llenan solos al confirmar
+    u5=pg.evaluate("async()=>{const c=await import('/src/services/catalogs.js'); return c.listAll('vehicles').find(v=>v.eco==='5'&&!v.mergedInto).id}")
+    imgpol=os.path.join(FD,'poliza-005.png'); pg2=ctx.new_page(); pg2.set_viewport_size({'width':900,'height':640}); pg2.set_content(POL_HTML); pg2.screenshot(path=imgpol); pg2.close()
+    open_unit(pg,u5); tab(pg,'docs')
+    pg.locator('[data-up="insurance"]').click(); pg.wait_for_selector('[data-pick="file"]'); choose(pg,'[data-pick="file"]',imgpol)
+    pg.wait_for_selector('[data-pol]',timeout=120000); pg.wait_for_timeout(300)
+    det=pg.locator('[data-pol]').inner_text()
+    ok('BBVA Seguros' in det and '482A61079A' in det and '01/02/2026 — 01/02/2027' in det and '2019' in det and '3AKJGLDR8KSKB4321' in det and 'leído con OCR' in det,'póliza en imagen: los cinco datos leídos con OCR')
+    ok(pg.locator('[data-pol] [data-ua="year"]').is_checked() and pg.locator('[data-pol] [data-ua="vin"]').is_checked(),'la unidad no tenía año ni número de serie: se llenan automáticamente al confirmar')
+    pg.locator('[data-polconfirm]').click(); pg.locator('[data-savedoc]').click(); pg.wait_for_timeout(1000)
+    tab(pg,'info'); inf=pg.locator('.uf-sec').inner_text()
+    ok('2019' in inf and '3AKJGLDR8KSKB4321' in inf,'UNIDAD 005: año y número de serie tomados de la póliza')
+    ev=pg.evaluate("async(id)=>{const un=await import('/src/services/units.js'); return un.eventsOf(id).map(e=>e.type+':'+e.details).join('|')}",u5)
+    ok('unit_updated' in ev and '2019' in ev,'el cambio de la unidad queda en su historial')
+    open_unit(pg,uid); tab(pg,'docs')
     # Complemento en PDF (formato de referencia)
     d1=TODAY-datetime.timedelta(days=9); d2=d1+datetime.timedelta(days=31)   # 11/10/2026 al 11/11/2026
     cp1=pdf_text(pg,ref_lines(d1,d2,'2026-10-14'),os.path.join(FD,'complemento-octubre.pdf'))

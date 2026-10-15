@@ -17,6 +17,21 @@ export const PROVIDER = {
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   attribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">© OpenMapTiles</a> Datos de <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
 };
+/*
+ * Vista satelital: Esri World Imagery (fotografía aérea y satelital mundial; en México llega a nivel de calle). Mosaicos
+ * raster públicos sin clave en el navegador (no hay contraseñas ni tokens privados en el código). Atribución obligatoria
+ * (siempre visible). Encima se dibujan, del mismo proveedor vectorial, carreteras, límites y nombres («híbrido»).
+ * Uso comercial a gran escala: Esri pide una cuenta de ArcGIS Location Platform (nivel gratuito); su clave es pública
+ * por diseño (restringida al dominio de la app) y se agregaría en `key` sin tocar los componentes.
+ */
+export const SATELLITE = {
+  name: 'Esri World Imagery',
+  tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  key: '',
+  maxzoom: 19,
+  attribution: 'Imágenes <a href="https://www.esri.com/" target="_blank" rel="noopener">© Esri</a>, Maxar, Earthstar Geographics y la comunidad de usuarios de SIG',
+};
+export const VIEWS = { map: 'Mapa', satellite: 'Satélite' };
 /* Vista inicial sin unidades: México */
 export const MEXICO = { center: [-102.4, 23.6], zoom: 4.1 };
 
@@ -39,6 +54,27 @@ const PALETTE = {
     rail: '#2C3446', boundary: '#3E485C', country: '#5D6780',
     label: '#C9CFDB', muted: '#8A93A6', halo: 'rgba(14,18,25,0.88)', city: '#EEF1F6', dot: '#B6BDCC', ref: '#FFB27F',
   },
+  /* Sobre la imagen satelital: vialidades translúcidas y nombres blancos con contorno oscuro (igual en claro y oscuro) */
+  satellite: {
+    bg: '#1B232B', waterLabel: '#CFE0FF',
+    minor: 'rgba(255,255,255,0.32)', major: 'rgba(255,255,255,0.62)', majorCase: 'rgba(0,0,0,0.28)', majorLow: 'rgba(255,255,255,0.45)',
+    motorway: 'rgba(255,205,110,0.92)', motorwayCase: 'rgba(0,0,0,0.38)', motorwayLow: 'rgba(255,205,110,0.7)', tunnel: 'rgba(255,205,110,0.4)',
+    rail: 'rgba(255,255,255,0.4)', boundary: 'rgba(255,255,255,0.6)', country: 'rgba(255,255,255,0.85)',
+    label: '#FFFFFF', muted: '#EEF1F6', halo: 'rgba(8,12,18,0.85)', city: '#FFFFFF', dot: '#FFFFFF', ref: '#FFD58F',
+  },
+};
+/* Capas del mapa que se conservan sobre la imagen satelital (el resto —agua, parques, edificios— ya se ve en la foto) */
+const SAT_LAYERS = new Set(['tunel-autopista', 'calles', 'avenidas-casco', 'avenidas', 'avenidas-lejos', 'autopistas-casco', 'autopistas', 'autopistas-lejos', 'ferrocarril',
+  'limites-estatales', 'limites-pais', 'nombre-rios', 'nombre-calles', 'nombre-avenidas', 'numero-carretera', 'nombre-colonias', 'nombre-pueblos', 'nombre-localidades',
+  'punto-ciudades', 'nombre-ciudades', 'nombre-estados', 'nombre-paises']);
+/* Vialidades más delgadas sobre la foto (no tapan lo que se ve del camino) */
+const SAT_WIDTH = {
+  calles: ['interpolate', ['linear'], ['zoom'], 14, 0.5, 20, 3],
+  'avenidas-casco': ['interpolate', ['linear'], ['zoom'], 9, 1.4, 20, 6],
+  avenidas: ['interpolate', ['linear'], ['zoom'], 9, 0.6, 20, 3.5],
+  'autopistas-casco': ['interpolate', ['linear'], ['zoom'], 6, 1.6, 20, 7],
+  autopistas: ['interpolate', ['linear'], ['zoom'], 6, 0.8, 20, 4.5],
+  'tunel-autopista': ['interpolate', ['linear'], ['zoom'], 8, 1, 20, 4],
 };
 
 const LINES = ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false];
@@ -50,14 +86,16 @@ const F = { r: ['Noto Sans Regular'], b: ['Noto Sans Bold'], i: ['Noto Sans Ital
 const z = (...stops) => ['interpolate', ['exponential', 1.4], ['zoom'], ...stops];
 const lin = (...stops) => ['interpolate', ['linear'], ['zoom'], ...stops];
 
-export function buildStyle(theme = 'light') {
-  const c = PALETTE[theme === 'dark' ? 'dark' : 'light'];
+/* theme: 'light'|'dark'; view: 'map'|'satellite' */
+export function buildStyle(theme = 'light', view = 'map') {
+  const sat = view === 'satellite';
+  const c = PALETTE[sat ? 'satellite' : theme === 'dark' ? 'dark' : 'light'];
   const S = 'omt';
   const L = (id, type, layer, extra) => ({ id, type, source: S, 'source-layer': layer, ...extra });
   const text = (paint = {}) => ({ 'text-color': c.label, 'text-halo-color': c.halo, 'text-halo-width': 1.4, ...paint });
-  return {
+  const style = {
     version: 8,
-    name: `PERCONSUR ${theme === 'dark' ? 'oscuro' : 'claro'}`,
+    name: sat ? 'PERCONSUR satélite' : `PERCONSUR ${theme === 'dark' ? 'oscuro' : 'claro'}`,
     glyphs: PROVIDER.glyphs,
     sources: { [S]: { type: 'vector', url: PROVIDER.tilejson, attribution: PROVIDER.attribution } },
     layers: [
@@ -99,4 +137,18 @@ export function buildStyle(theme = 'light') {
       L('nombre-paises', 'symbol', 'place', { maxzoom: 7, filter: cls('country'), layout: { 'text-field': NAME, 'text-font': F.b, 'text-size': lin(2, 10, 6, 15), 'text-max-width': 7 }, paint: text({ 'text-color': c.label }) }),
     ],
   };
+  if (!sat) return style;
+  const tiles = SATELLITE.tiles + (SATELLITE.key ? `?token=${encodeURIComponent(SATELLITE.key)}` : '');
+  style.sources.sat = { type: 'raster', tiles: [tiles], tileSize: 256, maxzoom: SATELLITE.maxzoom, attribution: SATELLITE.attribution };
+  style.layers = [
+    style.layers[0],
+    { id: 'satelite', type: 'raster', source: 'sat', paint: { 'raster-fade-duration': 150 } },
+    ...style.layers.filter((l) => SAT_LAYERS.has(l.id)).map((l) => {
+      const out = { ...l, paint: { ...l.paint } };
+      if (SAT_WIDTH[l.id]) out.paint['line-width'] = SAT_WIDTH[l.id];
+      if (l.type === 'symbol') out.paint['text-halo-width'] = Math.max(1.6, l.paint['text-halo-width'] || 0);
+      return out;
+    }),
+  ];
+  return style;
 }

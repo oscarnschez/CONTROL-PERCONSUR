@@ -7,7 +7,7 @@
  * (sin rotación ni inclinación, densidad de píxeles limitada a 2, reajuste de tamaño al rotar o volver del segundo
  * plano) y la atribución del proveedor siempre visible.
  */
-import { buildStyle, MEXICO } from './mapStyle.js';
+import { buildStyle, MEXICO, VIEWS } from './mapStyle.js';
 
 const BASE = new URL('../../../vendor/maplibre/', import.meta.url).href;
 let pending = null;
@@ -43,16 +43,22 @@ export function pageTheme() {
   return window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+/* Vista elegida (mapa o satélite): se recuerda en este dispositivo */
+const VIEW_KEY = 'pcs-map-view';
+export function savedView() { try { const v = localStorage.getItem(VIEW_KEY); return VIEWS[v] ? v : 'map'; } catch (e) { return 'map'; } }
+function saveView(v) { try { localStorage.setItem(VIEW_KEY, v); } catch (e) { /* sin almacenamiento: solo esta vez */ } }
+
 /*
- * Mapa base. opts: { center, zoom, interactive=true, attribution='bottom-right' }
- * Devuelve { ml, map, setTheme(theme), destroy() }. Cambia de estilo solo si cambia el tema (los marcadores, que son
- * elementos HTML, se conservan).
+ * Mapa base. opts: { center, zoom, interactive=true, attribution='bottom-right', views=false }
+ *   views  true = permite cambiar a vista satelital (arranca con la última vista elegida en el dispositivo)
+ * Devuelve { ml, map, theme, view, setView(v), destroy() }. Cambia de estilo solo si cambia el tema o la vista (los
+ * marcadores, que son elementos HTML, se conservan).
  */
-export async function createBaseMap(container, { center = MEXICO.center, zoom = MEXICO.zoom, interactive = true, attribution = 'bottom-right' } = {}) {
+export async function createBaseMap(container, { center = MEXICO.center, zoom = MEXICO.zoom, interactive = true, attribution = 'bottom-right', views = false } = {}) {
   const ml = await loadMapLibre();
-  let theme = pageTheme();
+  let theme = pageTheme(), view = views ? savedView() : 'map';
   const map = new ml.Map({
-    container, style: buildStyle(theme), center, zoom, interactive,
+    container, style: buildStyle(theme, view), center, zoom, interactive,
     attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,
     renderWorldCopies: false, pixelRatio: Math.min(window.devicePixelRatio || 1, 2), fadeDuration: 180,
     minZoom: 2.5, maxZoom: 18.5, locale: LOCALE,
@@ -60,6 +66,7 @@ export async function createBaseMap(container, { center = MEXICO.center, zoom = 
   if (map.touchZoomRotate) map.touchZoomRotate.disableRotation();
   if (map.keyboard) map.keyboard.disableRotation && map.keyboard.disableRotation();
   map.addControl(new ml.AttributionControl({ compact: true }), attribution);
+  container.dataset.mapView = view;
   /* Fuentes del proveedor que no responden: el mapa sigue dibujando (sin nombres) en vez de fallar */
   map.on('error', (e) => { if (e && e.error) console.warn('mapa:', e.error.message || e.error); });
   /* Tamaño: el contenedor cambia al rotar el iPhone, al abrir el panel o al volver del segundo plano */
@@ -72,12 +79,19 @@ export async function createBaseMap(container, { center = MEXICO.center, zoom = 
   window.addEventListener('pageshow', onShow);
   /* Tema: la app avisa con «pcs:theme»; el portal sigue al sistema */
   const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
-  const onTheme = () => { const t = pageTheme(); if (t !== theme && !gone) { theme = t; map.setStyle(buildStyle(t), { diff: true }); } };
+  const onTheme = () => { const t = pageTheme(); if (t !== theme && !gone) { theme = t; if (view === 'map') map.setStyle(buildStyle(t, view), { diff: true }); } };
   window.addEventListener('pcs:theme', onTheme);
   if (mq && mq.addEventListener) mq.addEventListener('change', onTheme);
   return {
     ml, map,
     get theme() { return theme; },
+    get view() { return view; },
+    setView(v) {
+      if (!views || !VIEWS[v] || v === view || gone) return;
+      view = v; saveView(v);
+      container.dataset.mapView = v;
+      map.setStyle(buildStyle(theme, v), { diff: true });
+    },
     destroy() {
       if (gone) return; gone = true;
       if (ro) ro.disconnect();

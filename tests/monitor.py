@@ -38,9 +38,18 @@ def tiles(route, req):
     h={'Access-Control-Allow-Origin':'*'}
     if re.search(r'/planet/?$',req.url): return route.fulfill(status=200, headers={**h,'Content-Type':'application/json'}, body=json.dumps(TJ))
     route.fulfill(status=200, headers={**h,'Content-Type':'application/x-protobuf'}, body=b'')
+def png(w=256,h=256):
+    """Mosaico satelital simulado (PNG generado sin librerías)"""
+    import zlib,struct
+    raw=b''.join(b'\x00'+b''.join(bytes((70+(x*y)%40,95+(x+y)%50,55)) for x in range(w)) for y in range(h))
+    ch=lambda t,d: struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
+    return b'\x89PNG\r\n\x1a\n'+ch(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+ch(b'IDAT',zlib.compress(raw))+ch(b'IEND',b'')
+SAT_PNG=png(); sat_hits=[]
+def sat_tiles(route, req):
+    sat_hits.append(req.url); route.fulfill(status=200, headers={'Access-Control-Allow-Origin':'*','Content-Type':'image/png'}, body=SAT_PNG)
 def setup_ctx(ctx):
     ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
-    ctx.route(W+'/**', to_worker); ctx.route('https://app.test/**', app_files); ctx.route('https://tiles.openfreemap.org/**', tiles)
+    ctx.route(W+'/**', to_worker); ctx.route('https://app.test/**', app_files); ctx.route('https://tiles.openfreemap.org/**', tiles); ctx.route('https://server.arcgisonline.com/**', sat_tiles)
     ctx.route('https://nominatim.openstreetmap.org/**', lambda r: r.fulfill(status=200, body=json.dumps([{'lat':'20.6597','lon':'-103.3496','place_rank':16,'display_name':'Guadalajara'}] if 'Guadalajara' in r.request.url else []), headers={'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}))
 def watch(pg):
     pg.on('pageerror',lambda e:errs.append(str(e))); pg.on('console',lambda m: errs.append('console: '+m.text) if m.type=='error' else None)
@@ -201,6 +210,21 @@ try:
     # Tema oscuro
     pg.evaluate("async()=>{const t=await import('./src/services/theme.js'); await t.setTheme('dark');}"); pg.wait_for_timeout(1200)
     ok(pg.evaluate(f"{FLEET}.map.getStyle().name")=='PERCONSUR oscuro','modo oscuro: el mapa cambia a su estilo oscuro sin recargar')
+    # Vista satelital: botón Mapa / Satélite, mismas unidades y selección, se recuerda en el dispositivo
+    vb=pg.locator('.mon-map [data-mc="view"]')
+    ok(vb.count()==1 and vb.inner_text().strip()=='Satélite' and vb.get_attribute('aria-pressed')=='false' and len(sat_hits)==0,'botón «Satélite» en los controles del mapa (vista de mapa por omisión, sin descargar imágenes)')
+    nvm=pg.locator('.mon .vm').count(); ndest=pg.locator('.vm-dest').count(); vb.click(); pg.wait_for_timeout(2000)
+    st=pg.evaluate(f"()=>{{const f={FLEET}, s=f.map.getStyle(); return {{name:s.name, view:f.view, src:Object.keys(s.sources), raster:s.layers.filter(l=>l.type==='raster').length, sel:f.selected(), key:localStorage.getItem('pcs-map-view'), attr:document.querySelector('.mon-map .maplibregl-ctrl-attrib').textContent}}}}")
+    ok(st['name']=='PERCONSUR satélite' and st['view']=='satellite' and 'sat' in st['src'] and st['raster']==1 and len(sat_hits)>0,f'«Satélite»: imagen satelital con carreteras y nombres encima ({len(sat_hits)} mosaicos)')
+    ok(pg.locator('.mon .vm').count()==nvm and st['sel']==ids['u12'] and pg.locator('.vm.is-sel').count()==1 and pg.locator('.vm-dest').count()==ndest,'las unidades, la unidad elegida y su destino se conservan al cambiar de vista (sin recargar)')
+    ok('Esri' in st['attr'] and vb.inner_text().strip()=='Mapa' and vb.get_attribute('aria-pressed')=='true' and st['key']=='satellite','atribución de las imágenes visible; el botón ahora dice «Mapa»; la vista se recuerda en el dispositivo')
+    shot(pg,'02b_satelite')
+    pg.evaluate("async()=>{const t=await import('./src/services/theme.js'); await t.setTheme('light');}"); pg.wait_for_timeout(800)
+    ok(pg.evaluate(f"{FLEET}.map.getStyle().name")=='PERCONSUR satélite','cambiar el tema de la app no quita la vista satelital')
+    pg.goto(BASE+'#/'); pg.wait_for_timeout(700); pg.goto(BASE+'#/operacion/logistica/monitoreo'); pg.wait_for_timeout(3500)
+    ok(pg.evaluate(f"{FLEET}.view")=='satellite' and pg.locator('.mon-map [data-mc="view"]').inner_text().strip()=='Mapa','al volver al monitor abre en la última vista elegida (satélite)')
+    pg.locator('.mon-map [data-mc="view"]').click(); pg.wait_for_timeout(1200)
+    ok(pg.evaluate(f"{FLEET}.map.getStyle().name")=='PERCONSUR claro' and pg.evaluate("localStorage.getItem('pcs-map-view')")=='map' and pg.locator('.mon-map [data-mc="view"]').inner_text().strip()=='Satélite','«Mapa» regresa a la vista de siempre')
     pg.evaluate("async()=>{const t=await import('./src/services/theme.js'); await t.setTheme('system');}")
     # Muchas unidades: agrupación
     pg.evaluate(f"""()=>{{const f={FLEET}; const L=[]; for(let i=0;i<120;i++) L.push({{id:'x'+i,lat:19+Math.random()*1.5,lng:-104.2+Math.random()*1.0,label:'X'+i,tone:'blue',trailerType:'chasis',motion:'moving'}}); f.setVehicles(L); f.fitFleet({{animate:false}})}}""")
@@ -219,6 +243,11 @@ try:
     hh=pg.evaluate("()=>{const m=document.querySelector('.mon-map').getBoundingClientRect(), p=document.querySelector('.mon-panel').getBoundingClientRect(); return {map:m.height, vis:m.bottom-p.top, page:document.documentElement.scrollWidth<=innerWidth}}")
     ok(hh['vis']<=200 and hh['map']>500 and hh['page'],'el panel no tapa el mapa (resumen ≤ 200 px) y sin desplazamiento lateral: '+json.dumps(hh))
     shot(pg,'06_iphone')
+    vb=pg.locator('.mon-map [data-mc="view"]').bounding_box(); mb=pg.locator('.mon-map').bounding_box(); pb=pg.locator('.mon-panel').bounding_box()
+    ok(vb and vb['width']>=44 and vb['height']>=44 and vb['x']+vb['width']<=mb['x']+mb['width'] and vb['y']+vb['height']<pb['y'],'iPhone: botón Mapa/Satélite de 54 px, visible y sin quedar bajo el panel')
+    pg.locator('.mon-map [data-mc="view"]').click(); pg.wait_for_timeout(1500); shot(pg,'06b_iphone_satelite')
+    ok(pg.evaluate(f"{FLEET}.view")=='satellite','iPhone: cambia a vista satelital')
+    pg.locator('.mon-map [data-mc="view"]').click(); pg.wait_for_timeout(800)
     pg.locator('.mon .vm').filter(has_text='U05').click(); pg.wait_for_timeout(1500)
     ok(pg.locator('.vm-pop').count()==0 and 'U05' in pg.locator('[data-pv-detail]').inner_text() and pg.locator('.mon').get_attribute('data-sheet')=='half','iPhone: tocar un marcador muestra la tarjeta en el panel (sin ventana sobre el mapa)')
     box=pg.evaluate("()=>{const m=document.querySelector('.vm.is-sel').getBoundingClientRect(), mp=document.querySelector('.mon-map').getBoundingClientRect(), p=document.querySelector('.mon-panel').getBoundingClientRect(); return {y:m.top+m.height/2, top:mp.top, sheet:p.top}}")

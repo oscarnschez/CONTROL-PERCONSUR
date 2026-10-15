@@ -20,6 +20,9 @@
  *   DATA            KV      información compartida entre dispositivos (Ajustes → Sincronización de la app)
  *   DATA_WRITE_KEY  Secret  clave del dispositivo capturista (publica la información)
  *   DATA_READ_KEY   Secret  clave de los dispositivos de consulta (solo reciben)
+ *   ALERTS          KV      opcional; avisos (geocercas, vencimientos, suscripciones push). Si falta se usa TRACKING
+ *   VAPID_SUBJECT   Texto   opcional; contacto para los servicios de push (por defecto la dirección de la app)
+ *   Cron Trigger    cada 5 minutos (expresión «cada 5 min», ver README) para revisar llegadas, salidas y vencimientos sin la app abierta
  *
  * Endpoints:
  *   GET /salud                 ¿se pudo autenticar con IOPGPS? (sin credenciales ni ubicaciones; con ?key= añade nombres de campos)
@@ -36,6 +39,11 @@
  *   GET  /v1/datos                         la «foto» comprimida de los registros (catálogos, documentos, Logística…)
  *   PUT  /v1/datos                         publica una foto nueva (solo capturista; 409 si otra la publicó)
  *   GET|PUT|DELETE /v1/archivos/:id        archivos (PDF, fotos, documentos adicionales); PUT y DELETE solo capturista
+ *   Avisos (X-PCS-Key; ver «Avisos» más abajo):
+ *   GET  /v1/avisos                        estado: llave pública VAPID, configuración publicada, suscripciones, última revisión
+ *   POST /v1/avisos/config                 la app publica unidades, geocercas y vencimientos
+ *   GET  /v1/avisos/eventos?desde=ms       llegadas y salidas registradas (y quién está dentro de cada geocerca)
+ *   POST /v1/avisos/suscripcion | baja | prueba   notificaciones push de un dispositivo
  *   Públicos (sin clave; solo con el enlace):
  *   GET /r/:token              página del portal de rastreo (identidad PERCONSUR; el mapa y el diseño vienen de APP_URL)
  *   GET /v1/publico/:token     datos del portal: origen, destino, estado y ubicación actual de ESA unidad mientras el
@@ -614,13 +622,343 @@ async function dataRoute(req, env, ip, url) {
   return json(req, env, 404, { ok: false, error: 'Ruta no encontrada' });
 }
 
+/* ===== Avisos: llegadas y salidas (geocercas) y vencimientos, con notificaciones push ===== */
+/*
+ * La app (dispositivo capturista) publica aquí lo mínimo para vigilar sin tener la app abierta (POST /v1/avisos/config):
+ *   units  [{ imei, unit }]                         unidades con GPS
+ *   zones  [{ id, name, kind, lat, lng, r, imei?, opId? }]   geocercas: lugares del catálogo (para todas las unidades) y
+ *                                                    el destino de cada viaje activo (solo para su unidad: imei)
+ *   dues   [{ id, unit, doc, until }]               documentos con fecha de fin confirmada
+ * Cada 5 min (Cron Trigger de Cloudflare → scheduled) se comparan las posiciones de la flota con las geocercas:
+ *   entra  distancia ≤ radio                         → «Llegada»
+ *   sale   distancia > radio × 1.2 + 100 m           → «Salida» con el tiempo que estuvo en el lugar
+ *   (entre ambos se conserva el estado: el ruido del GPS en la orilla no genera llegadas y salidas falsas)
+ * Una geocerca o unidad nueva se registra en silencio la primera vez (no «llega» lo que ya estaba ahí). Posiciones con
+ * más de 30 min de antigüedad no se usan. Las llegadas y salidas se guardan 30 días (alr:geo) y la app las consulta
+ * (GET /v1/avisos/eventos); si el Cron Trigger no está activo, esa consulta hace la revisión (cada 4 min como máximo).
+ * Vencimientos: una vez al día, desde las 8:00 (hora de la operación), resumen de documentos que vencen en 30, 15, 7, 3
+ * o 1 días, hoy, o que ya vencieron (al día siguiente y luego cada semana).
+ *
+ * Notificaciones push (Web Push, estándar de los navegadores; también iPhone con la app instalada, iOS 16.4+): cada
+ * dispositivo se suscribe desde Ajustes → Avisos (POST /v1/avisos/suscripcion). El mensaje va cifrado de punta a punta
+ * (RFC 8291) y firmado con llaves VAPID que este Worker genera la primera vez y guarda en su KV: no hay claves en la app.
+ * Solo se envían a los servicios de push de los navegadores (Google, Mozilla, Apple, Microsoft).
+ * Escrituras en KV (plan gratuito: 1000 al día): solo cuando hay llegadas/salidas o cambios, 1 al día por vencimientos
+ * y 1 por hora como señal de que la revisión automática corre.
+ */
+const ALR_TICK_MIN = 4 * 60 * 1000;        /* revisión desde la app (sin Cron Trigger): como máximo cada 4 min */
+const ALR_FRESH_MS = 30 * 60 * 1000;       /* posición más antigua que esto no cuenta para llegadas/salidas */
+const ALR_KEEP_MS = 30 * 24 * 3600 * 1000; /* llegadas y salidas guardadas */
+const ALR_LOG_MAX = 3000;
+const ALR_DUE_HOUR = 8;
+const ALR_TZ = 'America/Mexico_City';
+const ZONE_KINDS = ['terminal', 'yard', 'loadingYard', 'plant', 'place', 'delivery', 'custom'];
+const PUSH_HOST_RE = /^(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)$/;
+const alrMem = { lastTick: 0, ticking: null, vapid: null, cronMark: 0 };
+const alrKv = (env) => env.ALERTS || env.TRACKING || env.LIMITS || null;
+class AlertError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
+function needAlrKv(env) {
+  const kv = alrKv(env);
+  if (!kv) throw new AlertError('Falta vincular el espacio KV «TRACKING» en el Worker (ver README → Avisos).', 503);
+  return kv;
+}
+
+/* Distancia en metros (fórmula del haversine) */
+export function distanceM(a, b) {
+  const R = 6371000, rad = Math.PI / 180, dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+export const exitDistance = (r) => r * 1.2 + 100;
+
+/* Lo que publica la app, limpio y acotado */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export function sanitizeAlertConfig(b) {
+  const units = [], zones = [], dues = [], seen = new Set();
+  for (const u of (Array.isArray(b.units) ? b.units : []).slice(0, 500)) {
+    const imei = String(u && u.imei || '');
+    if (!/^\d{8,20}$/.test(imei) || seen.has(imei)) continue;
+    seen.add(imei); units.push({ imei, unit: txt(u.unit, 40) });
+  }
+  const zids = new Set();
+  for (const z of (Array.isArray(b.zones) ? b.zones : []).slice(0, 1500)) {
+    const p = point(z), id = String(z && z.id || '');
+    if (!p || !/^[\w:.-]{1,80}$/.test(id) || zids.has(id)) continue;
+    zids.add(id);
+    const out = { id, name: txt(z.name, 80) || 'Lugar', kind: ZONE_KINDS.includes(z.kind) ? z.kind : 'custom', lat: p.lat, lng: p.lng, r: Math.round(Math.min(5000, Math.max(50, Number(z.r) || 300))) };
+    if (z.imei && /^\d{8,20}$/.test(String(z.imei))) out.imei = String(z.imei);
+    if (z.opId && /^[\w-]{1,64}$/.test(String(z.opId))) out.opId = String(z.opId);
+    zones.push(out);
+  }
+  for (const d of (Array.isArray(b.dues) ? b.dues : []).slice(0, 3000)) {
+    if (!d || !ISO_DATE.test(String(d.until || ''))) continue;
+    dues.push({ id: txt(d.id, 80), unit: txt(d.unit, 40), doc: txt(d.doc, 60), until: String(d.until) });
+  }
+  const tz = typeof b.tz === 'string' && /^[A-Za-z_]+\/[A-Za-z_]+$/.test(b.tz) ? b.tz : ALR_TZ;
+  return { v: 1, tz, units, zones, dues };
+}
+
+/*
+ * Revisión de geocercas (pura: sin red ni KV). geo = { in: { imei: { zoneId: desde } }, units: [imei], zones: [id], log }
+ * positions = Map imei → { lat, lng, gpsTime, signalTime }. Devuelve { geo, events, changed }.
+ */
+export function evaluateGeofences(cfg, geo, positions, now = Date.now()) {
+  const g = { in: { ...(geo && geo.in || {}) }, units: [...(geo && geo.units || [])], zones: [...(geo && geo.zones || [])], log: [...(geo && geo.log || [])], daily: geo && geo.daily || '', cron: geo && geo.cron || 0 };
+  const knownUnits = new Set(g.units), knownZones = new Set(g.zones), zoneIds = new Set(cfg.zones.map((z) => z.id));
+  const events = [];
+  let changed = false;
+  for (const u of cfg.units) {
+    const p = positions.get(u.imei);
+    if (!p || p.lat == null || p.lng == null) continue;
+    const t = Math.max(p.gpsTime || 0, p.signalTime || 0);
+    if (t && now - t > ALR_FRESH_MS) continue;
+    const at = p.gpsTime && now - p.gpsTime < ALR_FRESH_MS ? p.gpsTime : now;
+    const cur = { ...(g.in[u.imei] || {}) };
+    const firstUnit = !knownUnits.has(u.imei);
+    for (const z of cfg.zones) {
+      if (z.imei && z.imei !== u.imei) continue;
+      const d = distanceM(p, z), was = cur[z.id];
+      const base = { imei: u.imei, unit: u.unit, zone: z.id, name: z.name, kind: z.kind, ...(z.opId ? { opId: z.opId } : {}), lat: p.lat, lng: p.lng };
+      if (!was && d <= z.r) {
+        cur[z.id] = at; changed = true;
+        if (!firstUnit && knownZones.has(z.id)) events.push({ ...base, t: 'enter', at });
+      } else if (was && d > exitDistance(z.r)) {
+        delete cur[z.id]; changed = true;
+        events.push({ ...base, t: 'exit', at, since: was, dwell: Math.max(0, at - was) });
+      }
+    }
+    /* Geocercas que ya no existen (viaje terminado, lugar borrado): se olvidan en silencio */
+    for (const id of Object.keys(cur)) if (!zoneIds.has(id)) { delete cur[id]; changed = true; }
+    if (Object.keys(cur).length) g.in[u.imei] = cur; else if (g.in[u.imei]) { delete g.in[u.imei]; changed = true; }
+    if (firstUnit) { knownUnits.add(u.imei); changed = true; }
+  }
+  for (const id of zoneIds) if (!knownZones.has(id)) { knownZones.add(id); changed = true; }
+  const nz = [...knownZones].filter((id) => zoneIds.has(id));
+  if (nz.length !== knownZones.size) changed = true;
+  g.units = [...knownUnits]; g.zones = nz;
+  events.forEach((e, i) => { e.id = `${now.toString(36)}-${i}-${e.imei.slice(-4)}`; e.rec = now; });
+  if (events.length) g.log = [...g.log, ...events].filter((e) => now - e.at < ALR_KEEP_MS).slice(-ALR_LOG_MAX);
+  return { geo: g, events, changed };
+}
+
+/* Fecha y hora local de la operación */
+export function localParts(tz = ALR_TZ, now = Date.now()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, hour: +p.hour };
+}
+const dayDiff = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+export const DUE_DAYS = [30, 15, 7, 3, 1, 0];
+/* Documentos que toca recordar hoy: vencen en 30, 15, 7, 3 o 1 días, hoy, o vencieron ayer (y después cada semana) */
+export function duesToday(dues, today) {
+  return dues.map((d) => ({ ...d, days: dayDiff(today, d.until) }))
+    .filter((d) => DUE_DAYS.includes(d.days) || (d.days < 0 && (-d.days - 1) % 7 === 0))
+    .sort((a, b) => a.days - b.days);
+}
+const dueWhen = (n) => (n === 0 ? 'Vence hoy' : n === 1 ? 'Vence mañana' : n > 1 ? `Vence en ${n} días` : n === -1 ? 'Venció ayer' : `Vencido hace ${-n} días`);
+export function duesMessage(list) {
+  const exp = list.filter((d) => d.days < 0).length, today = list.filter((d) => d.days === 0).length;
+  const title = exp && !today ? 'Documentos vencidos' : today ? 'Documentos que vencen hoy' : 'Documentos por vencer';
+  const lines = list.slice(0, 4).map((d) => `${dueWhen(d.days)}: ${d.doc} · ${d.unit}`);
+  if (list.length > 4) lines.push(`y ${list.length - 4} más`);
+  return { title, body: lines.join('\n'), tag: 'pcs-vencimientos', url: '#/avisos' };
+}
+const hm = (ms, tz) => new Intl.DateTimeFormat('es-MX', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
+export function dwellText(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h} h ${r} min` : `${h} h`;
+}
+export function geoMessage(events, tz = ALR_TZ) {
+  const line = (e) => (e.t === 'enter' ? `Llegó ${e.unit} a ${e.name} · ${hm(e.at, tz)}` : `Salió ${e.unit} de ${e.name} · ${hm(e.at, tz)} (${dwellText(e.dwell)} en el lugar)`);
+  if (events.length === 1) {
+    const e = events[0];
+    return { title: `${e.t === 'enter' ? 'Llegada' : 'Salida'} · ${e.unit}`, body: e.t === 'enter' ? `${e.name} · ${hm(e.at, tz)}` : `${e.name} · ${hm(e.at, tz)} · estuvo ${dwellText(e.dwell)}`, tag: `pcs-geo-${e.imei}`, url: '#/avisos' };
+  }
+  const n = events.filter((e) => e.t === 'enter').length, x = events.length - n;
+  const title = [n ? `${n} llegada${n === 1 ? '' : 's'}` : '', x ? `${x} salida${x === 1 ? '' : 's'}` : ''].filter(Boolean).join(' y ');
+  const lines = events.slice(0, 4).map(line);
+  if (events.length > 4) lines.push(`y ${events.length - 4} más`);
+  return { title, body: lines.join('\n'), tag: 'pcs-geo', url: '#/avisos' };
+}
+
+/* ===== Web Push (RFC 8291 aes128gcm + VAPID RFC 8292) ===== */
+const te = new TextEncoder();
+export const b64u = (buf) => { const a = new Uint8Array(buf); let s = ''; for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+export const unb64u = (s) => { s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); };
+const concat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+async function hkdf(salt, ikm, info, len) {
+  const k = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, k, len * 8));
+}
+/* Cifra el mensaje para una suscripción (p256dh y auth de la suscripción del navegador) */
+export async function encryptPush(payload, p256dh, auth, { salt = crypto.getRandomValues(new Uint8Array(16)) } = {}) {
+  const ua = unb64u(p256dh), secretAuth = unb64u(auth);
+  if (ua.length !== 65 || secretAuth.length < 16) throw new AlertError('Suscripción inválida');
+  const as = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey('raw', as.publicKey));
+  const uaKey = await crypto.subtle.importKey('raw', ua, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, as.privateKey, 256));
+  const ikm = await hkdf(secretAuth, shared, concat(te.encode('WebPush: info\0'), ua, asPub), 32);
+  const cek = await hkdf(salt, ikm, te.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdf(salt, ikm, te.encode('Content-Encoding: nonce\0'), 12);
+  const key = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, concat(te.encode(payload), new Uint8Array([2]))));
+  return concat(salt, new Uint8Array([0, 0, 16, 0]), new Uint8Array([65]), asPub, ct);
+}
+/* Llaves VAPID: se generan una sola vez y se guardan en el KV del Worker (nunca salen de aquí, salvo la pública) */
+export async function vapidKeys(env) {
+  if (alrMem.vapid) return alrMem.vapid;
+  const kv = needAlrKv(env);
+  let rec = await kv.get('alr:vapid', 'json');
+  if (!rec || !rec.pub || !rec.jwk) {
+    const k = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    rec = { pub: b64u(await crypto.subtle.exportKey('raw', k.publicKey)), jwk: await crypto.subtle.exportKey('jwk', k.privateKey), at: Date.now() };
+    await kv.put('alr:vapid', JSON.stringify(rec));
+  }
+  const priv = await crypto.subtle.importKey('jwk', rec.jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  alrMem.vapid = { pub: rec.pub, priv };
+  return alrMem.vapid;
+}
+export async function vapidHeader(env, endpoint, now = Date.now()) {
+  const v = await vapidKeys(env);
+  const sub = String(env.VAPID_SUBJECT || appUrl(env) || 'https://perconsur.mx/');
+  const h = b64u(te.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' }))), c = b64u(te.encode(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(now / 1000) + 12 * 3600, sub })));
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, v.priv, te.encode(`${h}.${c}`));
+  return `vapid t=${h}.${c}.${b64u(sig)}, k=${v.pub}`;
+}
+export const pushEndpointOk = (u) => { try { const x = new URL(u); return x.protocol === 'https:' && !x.port && PUSH_HOST_RE.test(x.hostname); } catch (e) { return false; } };
+/* Envía un aviso a una suscripción → 'ok' | 'gone' (el navegador ya no la tiene: se borra) | 'error' */
+export async function sendPush(env, sub, msg, { urgency = 'normal', ttl = 24 * 3600 } = {}) {
+  if (!pushEndpointOk(sub.endpoint)) return 'gone';
+  const body = await encryptPush(JSON.stringify(msg), sub.p256dh, sub.auth);
+  let r;
+  try {
+    r = await fetch(sub.endpoint, { method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream', 'Content-Encoding': 'aes128gcm', TTL: String(ttl), Urgency: urgency, Authorization: await vapidHeader(env, sub.endpoint) } });
+  } catch (e) { return 'error'; }
+  if (r.status === 404 || r.status === 410) return 'gone';
+  return r.ok ? 'ok' : 'error';
+}
+async function subsOf(env) { return (await needAlrKv(env).get('alr:subs', 'json')) || []; }
+async function saveSubs(env, list) { await needAlrKv(env).put('alr:subs', JSON.stringify(list.slice(-50))); }
+/* Avisa a los dispositivos suscritos a ese tipo de aviso; quita los que el navegador dio de baja */
+async function notifyAll(env, kind, msg, opts) {
+  const subs = await subsOf(env), gone = [];
+  let sent = 0;
+  for (const s of subs) {
+    if (!s.prefs || !s.prefs[kind]) continue;
+    const r = await sendPush(env, s, msg, opts);
+    if (r === 'ok') sent++;
+    if (r === 'gone') gone.push(s.endpoint);
+  }
+  if (gone.length) await saveSubs(env, subs.filter((s) => !gone.includes(s.endpoint)));
+  return sent;
+}
+
+/* ===== Revisión (Cron Trigger cada 5 min, o desde la consulta de la app) ===== */
+export async function runAlerts(env, { now = Date.now(), cron = false } = {}) {
+  if (alrMem.ticking) return alrMem.ticking;
+  alrMem.ticking = (async () => {
+    const kv = needAlrKv(env);
+    alrMem.lastTick = now;
+    const [cfg, geo0] = await Promise.all([kv.get('alr:cfg', 'json'), kv.get('alr:geo', 'json')]);
+    const out = { events: [], dues: 0, pushed: 0 };
+    if (!cfg) return out;
+    let geo = geo0 || {}, dirty = false;
+    /* Llegadas y salidas */
+    if (cfg.zones.length && cfg.units.length) {
+      const f = await fleet(env);
+      const pos = new Map(f.value.map((d) => [d.imei, d]));
+      const r = evaluateGeofences(cfg, geo, pos, now);
+      geo = r.geo; out.events = r.events; dirty = r.changed;
+      if (r.events.length) out.pushed += await notifyAll(env, 'geo', geoMessage(r.events, cfg.tz), { urgency: 'high', ttl: 6 * 3600 });
+    }
+    /* Vencimientos: una vez al día desde las 8:00 */
+    const lp = localParts(cfg.tz, now);
+    if (lp.hour >= ALR_DUE_HOUR && geo.daily !== lp.date) {
+      const list = duesToday(cfg.dues, lp.date);
+      out.dues = list.length;
+      if (list.length) out.pushed += await notifyAll(env, 'due', duesMessage(list), { ttl: 20 * 3600 });
+      geo = { ...geo, daily: lp.date }; dirty = true;
+    }
+    /* Señal de que la revisión automática corre (una escritura por hora) */
+    if (cron && now - (geo.cron || 0) > 55 * 60 * 1000) { geo = { ...geo, cron: now }; dirty = true; }
+    if (dirty) await kv.put('alr:geo', JSON.stringify(geo));
+    return out;
+  })().finally(() => { alrMem.ticking = null; });
+  return alrMem.ticking;
+}
+
+async function readJson(req, max = 1024 * 1024) {
+  const t = await req.text();
+  if (t.length > max) throw new AlertError('Datos demasiado grandes', 413);
+  try { const b = t ? JSON.parse(t) : {}; return b && typeof b === 'object' && !Array.isArray(b) ? b : {}; } catch (e) { throw new AlertError('Datos inválidos'); }
+}
+const cfgHash = (c) => md5(JSON.stringify([c.tz, c.units, c.zones, c.dues]));
+/* Rutas /v1/avisos (con la clave PCS_KEY) */
+async function alertsRoute(req, env, url) {
+  const kv = needAlrKv(env), p = url.pathname, isPost = req.method === 'POST';
+  if (p === '/v1/avisos' && !isPost) {
+    const [cfg, geo, subs, v] = await Promise.all([kv.get('alr:cfg', 'json'), kv.get('alr:geo', 'json'), subsOf(env), vapidKeys(env)]);
+    return json(req, env, 200, { ok: true, vapidKey: v.pub, config: cfg ? { at: cfg.at, hash: cfg.hash, units: cfg.units.length, zones: cfg.zones.length, dues: cfg.dues.length } : null,
+      subscriptions: subs.length, cronAt: (geo && geo.cron) || null, lastCheck: alrMem.lastTick || null, inside: geo && geo.in ? geo.in : {} });
+  }
+  if (p === '/v1/avisos/eventos' && !isPost) {
+    /* Sin Cron Trigger: la consulta de la app hace la revisión (como máximo cada 4 min por instancia). Con el Cron Trigger
+       activo (señal de la última hora) no se revisa aquí: dos revisiones a la vez podrían repetir un aviso */
+    const since = Math.max(0, Number(url.searchParams.get('desde')) || 0);
+    let geo = (await kv.get('alr:geo', 'json')) || {};
+    const cronLive = geo.cron && Date.now() - geo.cron < 65 * 60 * 1000;
+    if (!cronLive && Date.now() - alrMem.lastTick > ALR_TICK_MIN) {
+      try { await runAlerts(env); geo = (await kv.get('alr:geo', 'json')) || {}; } catch (e) { /* se entregan los ya registrados */ }
+    }
+    return json(req, env, 200, { ok: true, events: (geo.log || []).filter((e) => (e.rec || e.at) > since), inside: geo.in || {}, cronAt: geo.cron || null, checkedAt: alrMem.lastTick || null });
+  }
+  if (!isPost) throw new AlertError('Ruta no encontrada', 404);
+  const b = await readJson(req);
+  if (p === '/v1/avisos/config') {
+    const cfg = sanitizeAlertConfig(b), hash = cfgHash(cfg);
+    const cur = await kv.get('alr:cfg', 'json');
+    if (cur && cur.hash === hash) return json(req, env, 200, { ok: true, unchanged: true, hash, at: cur.at });
+    const rec = { ...cfg, hash, at: Date.now() };
+    await kv.put('alr:cfg', JSON.stringify(rec));
+    return json(req, env, 200, { ok: true, hash, at: rec.at, units: cfg.units.length, zones: cfg.zones.length, dues: cfg.dues.length });
+  }
+  const s = b.subscription || {};
+  const endpoint = String(s.endpoint || b.endpoint || '');
+  if (!pushEndpointOk(endpoint)) throw new AlertError('Este navegador no entregó una suscripción de avisos válida.');
+  if (p === '/v1/avisos/suscripcion') {
+    const keys = s.keys || {};
+    if (unb64u(keys.p256dh).length !== 65 || unb64u(keys.auth).length < 16) throw new AlertError('Suscripción inválida');
+    const prefs = { due: b.prefs ? !!b.prefs.due : true, geo: b.prefs ? !!b.prefs.geo : true };
+    const list = (await subsOf(env)).filter((x) => x.endpoint !== endpoint);
+    list.push({ endpoint, p256dh: keys.p256dh, auth: keys.auth, label: txt(b.label, 60), prefs, at: Date.now() });
+    await saveSubs(env, list);
+    return json(req, env, 200, { ok: true, prefs, subscriptions: list.length });
+  }
+  if (p === '/v1/avisos/baja') {
+    const list = await subsOf(env), next = list.filter((x) => x.endpoint !== endpoint);
+    if (next.length !== list.length) await saveSubs(env, next);
+    return json(req, env, 200, { ok: true, subscriptions: next.length });
+  }
+  if (p === '/v1/avisos/prueba') {
+    const sub = (await subsOf(env)).find((x) => x.endpoint === endpoint);
+    if (!sub) throw new AlertError('Este dispositivo no está suscrito a los avisos.', 404);
+    const r = await sendPush(env, sub, { title: 'Avisos de PERCONSUR activos', body: 'Así llegarán los vencimientos de documentos y las llegadas y salidas de las unidades.', tag: 'pcs-prueba', url: '#/avisos' }, { urgency: 'high', ttl: 600 });
+    if (r === 'gone') { await saveSubs(env, (await subsOf(env)).filter((x) => x.endpoint !== endpoint)); throw new AlertError('El navegador canceló la suscripción. Activa los avisos de nuevo.', 410); }
+    if (r !== 'ok') throw new AlertError('El servicio de notificaciones del navegador no aceptó el aviso. Intenta de nuevo.', 502);
+    return json(req, env, 200, { ok: true });
+  }
+  throw new AlertError('Ruta no encontrada', 404);
+}
+
 /* ===== Router ===== */
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req, env) });
     const isPost = req.method === 'POST', isData = isDataPath(url.pathname);
-    if (req.method !== 'GET' && !(isPost && url.pathname.startsWith('/v1/enlaces')) && !(isData && ['PUT', 'DELETE'].includes(req.method))) return json(req, env, 405, { ok: false, error: 'Método no permitido' });
+    if (req.method !== 'GET' && !(isPost && (url.pathname.startsWith('/v1/enlaces') || url.pathname.startsWith('/v1/avisos'))) && !(isData && ['PUT', 'DELETE'].includes(req.method))) return json(req, env, 405, { ok: false, error: 'Método no permitido' });
     const o = req.headers.get('Origin');
     /* El portal del cliente se sirve desde este mismo Worker: su propio origen siempre está permitido */
     if (o && o !== url.origin && !origins(env).includes(o)) return json(req, env, 403, { ok: false, error: 'Origen no autorizado' });
@@ -654,6 +992,7 @@ export default {
         } catch (e) { out.autenticacion = out.autenticacion || 'fallida'; out.error = e.message; }
         out.rastreoClientes = { kv: !!kvOf(env), portal: !!appUrl(env) };
         out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY) };
+        out.avisos = { kv: !!alrKv(env) };
         return json(req, env, out.ok ? 200 : 502, out);
       }
       if (!authorized) return json(req, env, 401, { ok: false, error: 'Clave de PERCONSUR inválida o ausente' });
@@ -678,6 +1017,7 @@ export default {
         const { rec, reused } = await createLink(env, await readBody(req));
         return json(req, env, reused ? 200 : 201, { ok: true, reused, link: internal(rec.id, rec) });
       }
+      if (url.pathname === '/v1/avisos' || url.pathname.startsWith('/v1/avisos/')) return await alertsRoute(req, env, url);
       const lm = /^\/v1\/enlaces\/([A-Za-z0-9_-]{32})(?:\/(finalizar|revocar))?$/.exec(url.pathname);
       if (lm && isPost) {
         const rec = await updateLink(env, lm[1], await readBody(req), lm[2] || '');
@@ -687,6 +1027,11 @@ export default {
     } catch (e) {
       return json(req, env, e.status || 502, { ok: false, error: e.message || 'Error al consultar IOPGPS' });
     }
+  },
+  /* Cron Trigger (Cloudflare → Worker → Settings → Triggers → Cron, cada 5 minutos; ver README): avisos sin la app abierta */
+  async scheduled(event, env, ctx) {
+    if (!alrKv(env)) return;
+    ctx.waitUntil(runAlerts(env, { cron: true }).catch((e) => console.warn('avisos:', e.message)));
   },
 };
 
@@ -710,4 +1055,4 @@ async function publicRoute(req, env, ip, kind, token) {
 }
 
 /* Solo para pruebas locales: reinicia el estado en memoria */
-export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; linkMem.clear(); listMem = null; dataReqs.clear(); }
+export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; linkMem.clear(); listMem = null; dataReqs.clear(); alrMem.lastTick = 0; alrMem.ticking = null; alrMem.vapid = null; }

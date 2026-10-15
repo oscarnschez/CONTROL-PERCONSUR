@@ -4,7 +4,7 @@
  */
 import http from 'node:http';
 import { createHash } from 'node:crypto';
-import worker, { md5, toMs, normalize, __reset, LIMITS, appUrl, newToken } from './worker.js';
+import worker, { md5, toMs, normalize, __reset, LIMITS, appUrl, newToken, distanceM, exitDistance, sanitizeAlertConfig, evaluateGeofences, duesToday, duesMessage, geoMessage, dwellText, localParts, encryptPush, vapidHeader, pushEndpointOk, runAlerts, b64u, unb64u } from './worker.js';
 
 const ok = (c, m) => { console.log((c ? 'OK  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 const nodeMd5 = (s) => createHash('md5').update(s, 'utf8').digest('hex');
@@ -22,7 +22,7 @@ ok(normalize({ imei: '1', updateTime: 'abc', gpsTime: 5 }).gpsTime === null && n
 /* ===== IOPGPS simulado ===== */
 const APPID = 'APP_PRUEBA', SECRET = 'secreto-de-prueba-0123456789abcdef';
 const stats = { auth: 0, fleet: 0, location: 0, status: 0, all: 0 };
-let tokens = new Set(), failNextWithToken = false, down = false, fleetNoTimes = false;
+let tokens = new Set(), failNextWithToken = false, down = false, fleetNoTimes = false, fleetList = null;
 const srv = http.createServer((req, res) => {
   const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   const u = new URL(req.url, 'http://x');
@@ -50,7 +50,7 @@ const srv = http.createServer((req, res) => {
     ];
     /* Proveedor cuya consulta de flota no trae horas (la consulta por unidad sí) */
     if (fleetNoTimes) list.forEach((d) => { delete d.gpsTime; });
-    return send(200, { code: 0, data: list });
+    return send(200, { code: 0, data: fleetList || list });
   }
   if (u.pathname === '/api/device/location') { stats.location++; return send(200, { code: 0, data: { lat: 19.01007, lng: -103.832489, address: 'Autopista Colima - Manzanillo, Tecolapa, Tecomán, Colima, México', gpsTime: 1759900380 } }); }
   if (u.pathname === '/api/device/status') { stats.status++; return send(200, { code: 0, data: [{ imei: u.searchParams.get('imei'), signalTime: fleetNoTimes ? Math.floor(Date.now() / 1000) - 40 : 1759900560, gpsTime: 1759900380, accStatus: 1, speed: 0 }] }); }
@@ -320,6 +320,120 @@ try {
   codesD = []; for (let i = 0; i < 5; i++) codesD.push((await dcall('/v1/datos/estado', { key: 'mala' + i, ip: '198.51.100.21' })).status);
   ok(codesD[codesD.length - 1] === 429, '5 claves de datos incorrectas → bloqueo (429)');
   r = await call('/salud', { e: envD, origin: null, key: null }); ok(r.body.informacionCompartida && r.body.informacionCompartida.kv === true && r.body.informacionCompartida.claves === true, '/salud indica si la información compartida está lista');
+
+  /* ===== Avisos: geocercas, vencimientos y notificaciones push ===== */
+  ok(Math.abs(distanceM({ lat: 19, lng: -104 }, { lat: 20, lng: -104 }) - 111195) < 200 && distanceM({ lat: 19.05, lng: -104.31 }, { lat: 19.05, lng: -104.31 }) === 0, 'distancia: 1° de latitud ≈ 111 km');
+  const cfgA = sanitizeAlertConfig({ tz: 'America/Mexico_City',
+    units: [{ imei: '865190071363660', unit: 'UNIDAD 012' }, { imei: 'abc', unit: 'X' }, { imei: '865190071363660', unit: 'repetida' }, { imei: '865190071300000', unit: 'UNIDAD 021' }],
+    zones: [{ id: 'terminals:ssa', name: 'Terminal SSA', kind: 'terminal', lat: 19.06, lng: -104.30, r: 400 }, { id: 'malo', lat: 999, lng: 1 }, { id: 'yards:p1', name: 'Patio 1', kind: 'yard', lat: 19.10, lng: -104.25, r: 10 },
+      { id: 'op:lg_1', name: 'CEDIS Guadalajara', kind: 'delivery', lat: 20.65, lng: -103.40, r: 99999, imei: '865190071363660', opId: 'lg_1' }],
+    dues: [{ id: 'd1', unit: 'UNIDAD 012', doc: 'Póliza de seguro', until: '2026-10-27' }, { id: 'd2', unit: 'UNIDAD 021', doc: 'Verificación', until: '27/10/2026' }] });
+  ok(cfgA.units.length === 2 && cfgA.zones.length === 3 && cfgA.zones[1].r === 50 && cfgA.zones[2].r === 5000 && cfgA.zones[2].imei === '865190071363660' && cfgA.zones[2].opId === 'lg_1' && cfgA.dues.length === 1,
+    'configuración de avisos: IMEI válidos sin repetir, coordenadas válidas, radio entre 50 m y 5 km, fechas AAAA-MM-DD');
+  const T0 = Date.parse('2026-10-20T15:00:00Z'), at = (min) => T0 + min * 60000;
+  const P = (lat, lng, t) => ({ lat, lng, gpsTime: t, signalTime: t });
+  const U12 = '865190071363660', U21 = '865190071300000';
+  const cfgG = { ...cfgA, zones: cfgA.zones.slice(0, 1) };
+  let g = evaluateGeofences(cfgG, null, new Map([[U12, P(19.0601, -104.3001, at(0))], [U21, P(19.20, -104.10, at(0))]]), at(0));
+  ok(g.events.length === 0 && g.geo.in[U12] && g.geo.in[U12]['terminals:ssa'] === at(0) && g.changed, 'primera revisión: la unidad que ya estaba en la terminal se registra sin aviso de «llegada»');
+  const edge = 19.06 + (400 + 60) / 111195;   /* 460 m: fuera del radio pero dentro del margen de salida */
+  let g2 = evaluateGeofences(cfgG, g.geo, new Map([[U12, P(edge, -104.30, at(5))], [U21, P(19.20, -104.10, at(5))]]), at(5));
+  ok(g2.events.length === 0 && g2.geo.in[U12]['terminals:ssa'] && !g2.changed, 'margen de salida: a 460 m (radio 400 m) sigue dentro; sin escrituras si nada cambió');
+  g2 = evaluateGeofences(cfgG, g2.geo, new Map([[U12, P(19.06 + 700 / 111195, -104.30, at(95))], [U21, P(19.0602, -104.3002, at(95))]]), at(95));
+  const ex = g2.events.find((e) => e.t === 'exit'), en = g2.events.find((e) => e.t === 'enter');
+  ok(ex && ex.imei === U12 && ex.dwell === 95 * 60000 && ex.name === 'Terminal SSA' && ex.unit === 'UNIDAD 012' && ex.rec === at(95), 'salida a 700 m: «Salida» con el tiempo en el lugar (1 h 35 min)');
+  ok(en && en.imei === U21 && en.at === at(95) && g2.geo.log.length === 2, 'otra unidad entra: «Llegada» con la hora de la posición GPS; ambas quedan en la bitácora');
+  let g3 = evaluateGeofences(cfgG, g2.geo, new Map([[U12, P(19.0601, -104.3001, at(100) - 40 * 60000)]]), at(100));
+  ok(g3.events.length === 0 && !g3.geo.in[U12], 'posición con más de 30 min de antigüedad: no cuenta');
+  const cfgG2 = { ...cfgA, zones: [cfgA.zones[0], cfgA.zones[2]] };
+  g3 = evaluateGeofences(cfgG2, g2.geo, new Map([[U12, P(20.6501, -103.4001, at(200))], [U21, P(20.6501, -103.4001, at(200))]]), at(200));
+  ok(g3.events.length === 1 && g3.events[0].t === 'exit' && g3.events[0].imei === U21 && !(g3.geo.in[U21] || {})['op:lg_1'] && g3.geo.in[U12]['op:lg_1'] && g3.events.every((e) => e.zone !== 'op:lg_1'),
+    'destino de un viaje: solo aplica a su unidad; una geocerca nueva se registra sin «llegada» falsa');
+  g3 = evaluateGeofences(cfgG, g3.geo, new Map([[U12, P(20.6501, -103.4001, at(205))]]), at(205));
+  ok(!g3.geo.in[U12] && g3.events.length === 0 && !g3.geo.zones.includes('op:lg_1'), 'viaje terminado (geocerca retirada): se olvida en silencio');
+  const dl = duesToday([{ unit: 'U1', doc: 'A', until: '2026-10-20' }, { unit: 'U2', doc: 'B', until: '2026-10-27' }, { unit: 'U3', doc: 'C', until: '2026-10-26' }, { unit: 'U4', doc: 'D', until: '2026-10-19' }, { unit: 'U5', doc: 'E', until: '2026-10-12' }, { unit: 'U6', doc: 'F', until: '2026-10-11' }, { unit: 'U7', doc: 'G', until: '2026-11-19' }], '2026-10-20');
+  ok(dl.map((d) => d.unit).join(',') === 'U5,U4,U1,U2,U7', 'vencimientos del día: hoy, 7 y 30 días; vencido ayer y cada semana (no todos los días)');
+  const dm = duesMessage(dl);
+  ok(dm.title === 'Documentos que vencen hoy' && /Vence hoy: A · U1/.test(dm.body) && /Venció ayer: D · U4/.test(dm.body) && /Vencido hace 8 días: E · U5/.test(dm.body) && /y 1 más/.test(dm.body), 'mensaje de vencimientos: claro y breve (máximo 4 renglones)');
+  const gm1 = geoMessage([ex], 'America/Mexico_City'), gm2 = geoMessage([ex, en], 'America/Mexico_City');
+  ok(gm1.title === 'Salida · UNIDAD 012' && /Terminal SSA · 10:35 · estuvo 1 h 35 min/.test(gm1.body) && gm2.title === '1 llegada y 1 salida' && /Llegó UNIDAD 021 a Terminal SSA · 10:35/.test(gm2.body), 'mensaje de llegadas y salidas con hora local (10:35) y tiempo en el lugar');
+  ok(dwellText(5 * 60000) === '5 min' && dwellText(120 * 60000) === '2 h' && localParts('America/Mexico_City', T0).date === '2026-10-20' && localParts('America/Mexico_City', T0).hour === 9, 'textos de tiempo y hora local de la operación');
+  /* Web Push: cifrado de punta a punta y firma VAPID */
+  const ua = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const uaPub = new Uint8Array(await crypto.subtle.exportKey('raw', ua.publicKey)), authS = crypto.getRandomValues(new Uint8Array(16));
+  const sub0 = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc123', keys: { p256dh: b64u(uaPub), auth: b64u(authS) } };
+  const enc = await encryptPush('{"title":"Hola ñ"}', sub0.keys.p256dh, sub0.keys.auth);
+  ok((await decryptPush(enc, ua, authS)) === '{"title":"Hola ñ"}' && enc[20] === 65, 'aviso cifrado (aes128gcm): solo el navegador suscrito lo puede leer');
+  const kvA = memKV(), envA = { ...env, TRACKING: kvA, APP_URL: 'https://oscarnschez.github.io/PERCONSUR/' };
+  __reset();
+  const vh = await vapidHeader(envA, sub0.endpoint, T0);
+  const [, jwt, kpub] = /^vapid t=([^,]+), k=(.+)$/.exec(vh) || [];
+  const [h64, c64, s64] = jwt.split('.'), claims = JSON.parse(new TextDecoder().decode(unb64u(c64)));
+  const vk = await crypto.subtle.importKey('raw', unb64u(kpub), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+  ok(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, vk, unb64u(s64), new TextEncoder().encode(`${h64}.${c64}`)) && claims.aud === 'https://fcm.googleapis.com' && claims.sub === 'https://oscarnschez.github.io/PERCONSUR/' && claims.exp > T0 / 1000,
+    'firma VAPID válida (ES256) con destino y contacto');
+  __reset();
+  ok((await vapidHeader(envA, sub0.endpoint)).endsWith('k=' + kpub) && JSON.parse(kvA.m.get('alr:vapid').v).jwk.d, 'llaves VAPID: se generan una vez y se reutilizan (guardadas en el KV del Worker, no en la app)');
+  ok(pushEndpointOk(sub0.endpoint) && pushEndpointOk('https://web.push.apple.com/QK1') && pushEndpointOk('https://updates.push.services.mozilla.com/wpush/v2/x') && !pushEndpointOk('http://fcm.googleapis.com/x')
+    && !pushEndpointOk('https://evil.example.com/x') && !pushEndpointOk('https://fcm.googleapis.com:8443/x') && !pushEndpointOk('https://fcm.googleapis.com.evil.com/x'), 'solo se envían avisos a los servicios de push de los navegadores (https, sin puertos ni dominios ajenos)');
+  /* Rutas */
+  const pushes = []; let pushStatus = 201;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u, o = {}) => { const url = String(u.url || u); if (url.startsWith('https://fcm.googleapis.com/')) { pushes.push({ url, headers: o.headers, body: o.body }); return new Response('', { status: pushStatus }); } return realFetch(u, o); };
+  const acall = (path, o = {}) => call(path, { e: envA, ...o });
+  r = await acall('/v1/avisos', { key: 'mala' }); ok(r.status === 401, 'avisos: sin la clave de la app → 401');
+  r = await acall('/v1/avisos', { e: env }); ok(r.status === 503 && /KV «TRACKING»/.test(r.body.error), 'avisos sin espacio KV: aviso claro (503)');
+  r = await acall('/v1/avisos'); ok(r.status === 200 && r.body.vapidKey === kpub && r.body.config === null && r.body.subscriptions === 0, 'estado de avisos: llave pública para suscribirse, sin configuración todavía');
+  r = await acall('/v1/avisos/config', { method: 'POST', body: { units: cfgA.units, zones: cfgA.zones.slice(0, 1), dues: [{ id: 'd1', unit: 'UNIDAD 012', doc: 'Póliza de seguro', until: '2026-10-27' }] } });
+  const puts0 = kvA.puts || 0;
+  ok(r.status === 200 && r.body.zones === 1 && r.body.units === 2 && kvA.m.get('alr:cfg'), 'la app publica unidades, geocercas y vencimientos');
+  r = await acall('/v1/avisos/config', { method: 'POST', body: { units: cfgA.units, zones: cfgA.zones.slice(0, 1), dues: [{ id: 'd1', unit: 'UNIDAD 012', doc: 'Póliza de seguro', until: '2026-10-27' }] } });
+  ok(r.body.unchanged === true && (kvA.puts || 0) === puts0, 'publicar lo mismo no gasta escrituras en KV');
+  r = await acall('/v1/avisos/suscripcion', { method: 'POST', body: { subscription: { ...sub0, endpoint: 'https://evil.example.com/x' } } }); ok(r.status === 400, 'suscripción con un destino ajeno → 400');
+  r = await acall('/v1/avisos/suscripcion', { method: 'POST', body: { subscription: sub0, label: 'iPhone de prueba', prefs: { due: true, geo: true } } });
+  ok(r.status === 200 && r.body.subscriptions === 1, 'el dispositivo se suscribe a los avisos');
+  r = await acall('/v1/avisos/prueba', { method: 'POST', body: { endpoint: sub0.endpoint } });
+  const tp = pushes[pushes.length - 1];
+  ok(r.status === 200 && tp && tp.headers['Content-Encoding'] === 'aes128gcm' && /^vapid t=/.test(tp.headers.Authorization) && JSON.parse(await decryptPush(tp.body, ua, authS)).title === 'Avisos de PERCONSUR activos', 'aviso de prueba: llega cifrado y firmado');
+  /* Revisión automática: la unidad sale de la terminal → aviso */
+  const nowS = () => Math.floor(Date.now() / 1000);
+  fleetList = [{ imei: U12, lat: 19.0601, lng: -104.3001, gpsTime: nowS() }, { imei: U21, lat: 19.5, lng: -104, gpsTime: nowS() }];
+  __reset(); let ra = await runAlerts(envA, { now: Date.now() });
+  ok(ra.events.length === 0 && JSON.parse(kvA.m.get('alr:geo').v).in[U12], 'revisión: primera vez registra quién está en cada lugar (sin avisos)');
+  fleetList = [{ imei: U12, lat: 19.08, lng: -104.30, gpsTime: nowS() }, { imei: U21, lat: 19.5, lng: -104, gpsTime: nowS() }];
+  const np = pushes.length; __reset(); ra = await runAlerts(envA, { now: Date.now() });
+  const msgs = []; for (const x of pushes.slice(np)) msgs.push(JSON.parse(await decryptPush(x.body, ua, authS)));
+  ok(ra.events.length === 1 && ra.events[0].t === 'exit' && msgs.some((m) => m.title === 'Salida · UNIDAD 012' && m.url === '#/avisos'), 'la unidad sale de la terminal: se registra y llega el aviso al dispositivo');
+  r = await acall('/v1/avisos/eventos?desde=0');
+  ok(r.status === 200 && r.body.events.length === 1 && r.body.events[0].t === 'exit', 'la app consulta las llegadas y salidas registradas');
+  r = await acall('/v1/avisos/eventos?desde=' + (r.body.events[0].rec)); ok(r.body.events.length === 0, 'consulta desde la última recibida: sin repetir');
+  /* Vencimientos: una vez al día desde las 8:00 */
+  const day8 = Date.parse('2026-10-20T14:30:00Z');   /* 8:30 en la Ciudad de México */
+  const np2 = pushes.length; __reset(); ra = await runAlerts(envA, { now: day8 });
+  const dmsg = pushes.slice(np2).length ? JSON.parse(await decryptPush(pushes[pushes.length - 1].body, ua, authS)) : null;
+  ok(ra.dues === 1 && dmsg && dmsg.title === 'Documentos por vencer' && /Vence en 7 días: Póliza de seguro · UNIDAD 012/.test(dmsg.body), 'vencimientos: resumen a las 8:00 (póliza que vence en 7 días)');
+  const np3 = pushes.length; __reset(); ra = await runAlerts(envA, { now: day8 + 3600000 });
+  ok(pushes.length === np3, 'el resumen de vencimientos se envía una sola vez al día');
+  const early = Date.parse('2026-10-21T12:00:00Z');   /* 6:00 */
+  __reset(); await runAlerts(envA, { now: early }); ok(pushes.length === np3, 'antes de las 8:00 no se envía el resumen');
+  /* El navegador canceló la suscripción: se borra */
+  pushStatus = 410; r = await acall('/v1/avisos/prueba', { method: 'POST', body: { endpoint: sub0.endpoint } }); pushStatus = 201;
+  r = await acall('/v1/avisos'); ok(r.body.subscriptions === 0, 'suscripción cancelada por el navegador (410): se elimina');
+  /* Cron Trigger */
+  await acall('/v1/avisos/suscripcion', { method: 'POST', body: { subscription: sub0, prefs: { due: false, geo: false } } });
+  const waits = []; __reset();
+  await worker.scheduled({ cron: '*/5 * * * *' }, envA, { waitUntil: (p) => waits.push(p) }); await Promise.all(waits);
+  r = await acall('/v1/avisos'); ok(r.body.cronAt && Date.now() - r.body.cronAt < 5000, 'Cron Trigger: la revisión automática deja su señal (una vez por hora)');
+  const npre = pushes.length; fleetList = [{ imei: U12, lat: 19.0601, lng: -104.3001, gpsTime: nowS() }];
+  __reset(); ra = await runAlerts(envA); ok(ra.events.length === 1 && pushes.length === npre, 'dispositivo sin avisos de llegadas: se registra la llegada pero no se le envía');
+  r = await acall('/v1/avisos/eventos?desde=0'); const nev = r.body.events.length;
+  fleetList = [{ imei: U12, lat: 19.08, lng: -104.30, gpsTime: nowS() }]; __reset();
+  r = await acall('/v1/avisos/eventos?desde=0'); const nev2 = r.body.events.length;
+  ra = await runAlerts(envA); r = await acall('/v1/avisos/eventos?desde=0');
+  ok(nev2 === nev && ra.events.length === 1 && ra.events[0].t === 'exit' && r.body.events.length === nev + 1, 'con el Cron Trigger activo la consulta de la app no hace su propia revisión (sin avisos repetidos)');
+  r = await acall('/v1/avisos/baja', { method: 'POST', body: { endpoint: sub0.endpoint } }); ok(r.body.subscriptions === 0, 'dar de baja los avisos de un dispositivo');
+  r = await acall('/salud', { origin: null, key: null }); ok(r.body.avisos && r.body.avisos.kv === true, '/salud indica si los avisos tienen espacio KV');
+  globalThis.fetch = realFetch; fleetList = null;
 } finally { srv.close(); }
 function PCS_KEY_FOR_TEST() { return 'clave-app-PERCONSUR-123'; }
 
@@ -328,10 +442,25 @@ function memKV() {
   const m = new Map();
   return { m,
     async get(k, t) { const v = m.get(k); return v == null ? null : t === 'json' ? JSON.parse(v.v) : v.v; },
-    async put(k, v, o = {}) { m.set(k, { v, meta: o.metadata, ttl: o.expirationTtl }); },
+    async put(k, v, o = {}) { this.puts = (this.puts || 0) + 1; m.set(k, { v, meta: o.metadata, ttl: o.expirationTtl }); },
     async delete(k) { m.delete(k); },
     async list({ prefix = '' } = {}) { return { keys: [...m].filter(([k]) => k.startsWith(prefix)).map(([name, x]) => ({ name, metadata: x.meta })), list_complete: true }; } };
 }
 
 /* Hace que la caché parezca vencida sin borrar su contenido */
 function cacheExpire() { const realNow = Date.now; Date.now = () => realNow() + 31 * 1000; setTimeout(() => { Date.now = realNow; }, 0); }
+
+/* Descifra un aviso como lo haría el navegador (RFC 8291) */
+async function decryptPush(body, uaKeys, auth) {
+  const b = new Uint8Array(body), salt = b.slice(0, 16), idlen = b[20], asPub = b.slice(21, 21 + idlen), ct = b.slice(21 + idlen);
+  const uaPub = new Uint8Array(await crypto.subtle.exportKey('raw', uaKeys.publicKey));
+  const asKey = await crypto.subtle.importKey('raw', asPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: asKey }, uaKeys.privateKey, 256));
+  const hk = async (salt2, ikm, info, n) => new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: salt2, info }, await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']), n * 8));
+  const te2 = new TextEncoder(), cat2 = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+  const ikm = await hk(auth, shared, cat2(te2.encode('WebPush: info\0'), uaPub, asPub), 32);
+  const cek = await hk(salt, ikm, te2.encode('Content-Encoding: aes128gcm\0'), 16), nonce = await hk(salt, ikm, te2.encode('Content-Encoding: nonce\0'), 12);
+  const plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['decrypt']), ct));
+  let end = plain.length - 1; while (end > 0 && plain[end] === 0) end--;
+  return plain[end] === 2 ? new TextDecoder().decode(plain.slice(0, end)) : null;
+}

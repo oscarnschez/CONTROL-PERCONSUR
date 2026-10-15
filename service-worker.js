@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'fae8df0cab';
+const VERSION = '90b9a24e1a';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -22,6 +22,7 @@ const PRECACHE = [
   "./src/config/version.js",
   "./src/core/dom.js",
   "./src/core/router.js",
+  "./src/domain/alerts/alerts.js",
   "./src/domain/billing/billing.js",
   "./src/domain/billing/report.js",
   "./src/domain/campo/model.js",
@@ -63,6 +64,7 @@ const PRECACHE = [
   "./src/main.js",
   "./src/portal/main.js",
   "./src/services/access.js",
+  "./src/services/alerts.js",
   "./src/services/backup.js",
   "./src/services/billing.js",
   "./src/services/billingPdf.js",
@@ -127,6 +129,7 @@ const PRECACHE = [
   "./src/ui/maps/VehicleMarker.js",
   "./src/ui/maps/engine.js",
   "./src/ui/maps/mapStyle.js",
+  "./src/ui/screens/alerts.js",
   "./src/ui/screens/billing.js",
   "./src/ui/screens/billingReport.js",
   "./src/ui/screens/campoWizard.js",
@@ -164,6 +167,7 @@ const PRECACHE = [
   "./src/ui/screens/workshopForms.js",
   "./src/ui/screens/workshopKit.js",
   "./src/ui/screens/workshopReport.js",
+  "./styles/alerts.css",
   "./styles/base.css",
   "./styles/components.css",
   "./styles/desktop.css",
@@ -250,6 +254,28 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (e) => { if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting(); });
+
+/* Avisos: notificaciones push del intermediario (vencimientos de documentos, llegadas y salidas de las unidades).
+   El mensaje llega cifrado; el navegador lo descifra antes de entregarlo aquí. */
+self.addEventListener('push', (event) => {
+  let m = {};
+  try { m = event.data ? event.data.json() : {}; } catch (e) { m = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil(self.registration.showNotification(m.title || 'PERCONSUR', {
+    body: m.body || '', tag: m.tag || 'pcs-aviso', renotify: !!m.tag, icon: './assets/icons/icon-192.png', badge: './assets/icons/favicon-32.png',
+    data: { hash: /^#\/[\w/?=&.-]*$/.test(m.url || '') ? m.url : '#/avisos' },
+  }));
+});
+/* Al tocar el aviso: abre la app (o la trae al frente) en la pantalla de Avisos */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const hash = (event.notification.data && event.notification.data.hash) || '#/avisos';
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const c = list.find((x) => x.url.startsWith(self.registration.scope));
+    if (c) { c.postMessage({ type: 'pcs-nav', hash }); return c.focus(); }
+    return self.clients.openWindow(new URL('./' + hash, self.registration.scope).href);
+  })());
+});
 
 const isExt = (url) => /^(cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)$/.test(url.hostname);
 

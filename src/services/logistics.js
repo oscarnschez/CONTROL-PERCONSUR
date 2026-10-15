@@ -95,13 +95,13 @@ async function write(out) {
  *  - una unidad no puede tener dos operaciones abiertas: si ya tiene una en estado de trabajo se rechaza;
  *    si la abierta está en Vacío o Inactiva, se cierra y pasa al historial (closeReason 'replaced').
  */
-export async function saveOperation(rec) {
+export async function saveOperation(rec, { by = '' } = {}) {
   await loadLogistics();
   if (!rec.vehicleId || !unitById(rec.vehicleId)) throw new Error('Elige una unidad del catálogo.');
   if (rec.operatorId && !operatorById(rec.operatorId)) throw new Error('El operador ya no está en el catálogo.');
   if (rec.trailerId && !trailerById(rec.trailerId)) throw new Error('El remolque ya no está en el catálogo.');
   if (!isStatus(rec.status)) throw new Error('Estado no válido.');
-  const now = Date.now(), who = actor();
+  const now = Date.now(), who = by || actor();
   const prev = rec.id ? cache.find((x) => x.id === rec.id) : null;
   const c = conflicts(live(), rec, prev ? prev.id : null);
   if (c.unit && (!prev || isOpen(prev))) throw new Error('Esta unidad ya tiene una operación activa.');
@@ -127,12 +127,12 @@ export async function saveOperation(rec) {
   return out;
 }
 
-/* Cambio rápido de estado (desde el detalle o desde Inicio) */
-export async function setStatus(id, status) {
+/* Cambio rápido de estado (desde el detalle o desde Inicio). by: quién lo hizo (p. ej. «Geocerca» si fue automático) */
+export async function setStatus(id, status, { by = '' } = {}) {
   const op = opById(id);
   if (!op) throw new Error('La operación ya no existe.');
   if (op.status === status) return op;
-  return saveOperation({ id, vehicleId: op.vehicleId, status });
+  return saveOperation({ id, vehicleId: op.vehicleId, status }, { by });
 }
 
 /* Cierra la operación: queda en el historial y la unidad pasa a Inactiva (sin operación abierta) */

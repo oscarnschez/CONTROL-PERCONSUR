@@ -37,6 +37,9 @@ import { mountMap } from '../components/gpsMap.js';
 import { targetOf, onTargetsChange } from '../../services/destinations.js';
 import { distanceKm, distanceText, isApprox } from '../../domain/gps/geo.js';
 import * as mt from '../../services/maintenance.js';
+import * as al from '../../services/alerts.js';
+import { isReadOnly } from '../../services/access.js';
+import { dwellText } from '../../domain/alerts/alerts.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -248,9 +251,10 @@ export async function logisticsUnitScreen({ id }) {
           ${xref.docId ? `<div><dt>Documento</dt><dd><a href="#/doc/${esc(xref.docId)}${xref.trip && xref.extra ? `?expediente=${esc(xref.trip.id)}` : ''}">Ver documento relacionado</a>${xref.extra ? `<small>Expediente consolidado: documento + ${xref.extra} adicional${xref.extra === 1 ? '' : 'es'}</small>` : ''}</dd></div>`
     : xref.trip && xref.extra ? `<div><dt>Expediente</dt><dd><button type="button" class="lg-linkbtn" data-xp>Ver expediente del viaje</button><small>${xref.extra} documento${xref.extra === 1 ? '' : 's'} adicional${xref.extra === 1 ? '' : 'es'}; sin documento principal</small></dd></div>` : ''}
         </dl></section>
+      ${geoHTML(op)}
       <div data-gps-slot></div>
       <div class="sheet-acts lg-acts"><button type="button" class="btn-secondary" data-edit>${icon.edit}<span>Editar operación</span></button><button type="button" class="btn-secondary" data-finish>${icon.check}<span>Terminar operación</span></button></div>
-      ${(op.statusLog || []).length > 1 ? `<section class="grp"><div class="grp-h"><h3>Bitácora de estados</h3></div><ol class="lg-log">${[...op.statusLog].reverse().slice(0, 8).map((x) => `<li>${statusChip(x.status, 'plain')}<small>${esc(dt(x.at))}</small></li>`).join('')}</ol></section>` : ''}
+      ${(op.statusLog || []).length > 1 ? `<section class="grp"><div class="grp-h"><h3>Bitácora de estados</h3></div><ol class="lg-log">${[...op.statusLog].reverse().slice(0, 8).map((x) => `<li>${statusChip(x.status, 'plain')}<small>${esc(dt(x.at))}${x.by === 'Geocerca' ? ' · automático por geocerca' : ''}</small></li>`).join('')}</ol></section>` : ''}
       <p class="grp-note">Inicio de la operación: ${esc(dt(op.startedAt))}${op.createdBy ? ' por ' + esc(op.createdBy) : ''} · Última actualización: ${esc(dt(op.updatedAt))}${op.updatedBy ? ' por ' + esc(op.updatedBy) : ''}</p>` : ''}
       <div class="sec-hrow lg-hh"><h2 class="sec-h">Historial de la unidad</h2>${hist.length ? `<span class="count">${hist.length}</span>` : ''}</div>
       ${hist.length ? `<div class="list">${hist.slice(0, 20).map((o) => histRow(o)).join('')}</div>` : '<div class="empty"><p>Sin operaciones anteriores. Al cerrar una operación queda registrada aquí.</p></div>'}`;
@@ -268,13 +272,32 @@ export async function logisticsUnitScreen({ id }) {
   on(root, 'click', '[data-finish]', () => { const op = lg.openOf(id); if (op) finishOperation(op); });
   on(root, 'click', '[data-hist]', (e, b) => openHistoryDetail(b.dataset.hist));
   on(root, 'click', '[data-xp]', () => { const op = lg.openOf(id), r = op && dossierRef(op); if (r && r.trip) generateDossier(r.trip); });
+  on(root, 'click', '[data-geoapply]', async () => {
+    const op = lg.openOf(id), sug = op && al.suggestionForOp(op);
+    if (!sug) return;
+    try { await al.applySuggestion(op, sug); toast(`${lg.view(op).label}: ${statusLabel(sug.status)}`); } catch (err) { toast(err.message || 'No se pudo cambiar el estado.', { type: 'warn' }); }
+  });
+  on(root, 'click', '[data-geodismiss]', (e, b) => al.dismiss(b.dataset.geodismiss));
   await ec.loadEmpties();
+  await al.loadAlerts();
   draw();
-  const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(draw);
-  s.cleanup = () => { u1(); u2(); gpsPanel.destroy(); };
+  const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(draw), u3 = al.onAlertsChange(draw);
+  s.cleanup = () => { u1(); u2(); u3(); gpsPanel.destroy(); };
   return s;
 }
 const emptyLabel = (r) => (isOverdue(r) ? 'Entrega vencida' : emptyStatusOf(r.status).label);
+
+/* Llegadas y salidas del viaje (geocercas) con el tiempo en cada lugar, y la sugerencia de cambio de estado */
+function geoHTML(op) {
+  if (!op || !gps.configured() || !gps.imeiOf(op.vehicleId)) return '';
+  const sug = al.suggestionForOp(op), stays = al.staysForOp(op), p2 = (n) => String(n).padStart(2, '0');
+  const hm = (ms) => { const d = new Date(ms); return `${relDay(ms).startsWith('Hoy') ? '' : `${d.getDate()}/${p2(d.getMonth() + 1)} `}${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+  if (!sug && !stays.length) return '';
+  return `${sug ? `<div class="al-sugbox" role="status">${icon.flag}<div><b>${esc(sug.text)}</b><small>${esc(sug.event.name)} · ${esc(hm(sug.event.at))}. ¿Cambiar el estado a ${esc(statusLabel(sug.status))}?</small>
+      ${isReadOnly() ? '' : `<span class="al-sug"><button type="button" class="btn-primary sm" data-geoapply>Cambiar a ${esc(statusLabel(sug.status))}</button><button type="button" class="btn-ghost sm" data-geodismiss="${esc(sug.event.id)}">Ahora no</button></span>`}</div></div>` : ''}
+    ${stays.length ? `<section class="grp"><div class="grp-h"><h3>Llegadas y salidas</h3><a class="link" href="#/avisos">Avisos</a></div>
+      <ol class="al-stays">${stays.slice(0, 8).map((x) => `<li class="${x.open ? 'open' : ''}"><b>${esc(x.name)}</b><span>Llegó ${esc(hm(x.from))}${x.to ? ` · salió ${esc(hm(x.to))}` : ' · sigue en el lugar'}</span><small>${x.open ? 'Lleva ' : ''}${esc(dwellText(x.dwell))} en el lugar</small></li>`).join('')}</ol></section>` : ''}`;
+}
 
 /* ===== Cambio rápido de estado (hoja inferior) ===== */
 export function openStatusSheet(op) {

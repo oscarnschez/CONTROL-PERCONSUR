@@ -57,6 +57,10 @@ Este archivo no contiene credenciales; se puede publicar sin riesgo.
 | `PUT /v1/datos` | `X-PCS-Data` **capturista** | publica una versión nueva; `409` si la publicó otro dispositivo |
 | `GET /v1/archivos/:id` | `X-PCS-Data` | un archivo (PDF, foto), siempre como descarga |
 | `PUT` · `DELETE /v1/archivos/:id` | `X-PCS-Data` **capturista** | sube o borra un archivo (máximo 24 MB) |
+| `GET /v1/avisos` | `X-PCS-Key` | llave pública VAPID, configuración publicada, dispositivos suscritos y última revisión automática |
+| `POST /v1/avisos/config` | `X-PCS-Key` | la app publica unidades con GPS, geocercas y fechas de fin de documentos (solo si cambió) |
+| `GET /v1/avisos/eventos?desde=ms` | `X-PCS-Key` | llegadas y salidas registradas (30 días) y qué unidad está en cada lugar ahora |
+| `POST /v1/avisos/suscripcion` · `…/baja` · `…/prueba` | `X-PCS-Key` | notificaciones push de un dispositivo: alta (con preferencias), baja y aviso de prueba |
 
 Tiempos en milisegundos (epoch). Los campos que IOPGPS no entregue llegan como `null`: la app no inventa datos.
 
@@ -196,9 +200,44 @@ los archivos: con más de ~900 PDF y fotos tarda más de un día y la app contin
 Cada revisión de un dispositivo de consulta es 1 lectura. Si la operación crece mucho, el plan Workers Paid (5 USD al mes)
 amplía estos límites.
 
+## Avisos (vencimientos, llegadas y salidas)
+
+La app avisa de **documentos por vencer** y de **llegadas y salidas** de las unidades en patios, terminales, plantas,
+destinos del catálogo y el destino de cada viaje activo, con **notificaciones push** aunque la app esté cerrada.
+
+**Activación (una sola vez):**
+1. Pega el `worker.js` nuevo y pulsa **Deploy** (usa el mismo espacio KV `TRACKING` del rastreo para clientes; si prefieres
+   uno aparte, crea `perconsur-avisos` y vincúlalo como `ALERTS`).
+2. **Revisión automática:** Cloudflare → tu Worker → **Settings → Triggers → Cron Triggers → Add Cron Trigger** →
+   expresión `*/5 * * * *` (cada 5 minutos) → **Add**. Sin este paso los avisos solo se revisan mientras alguien tiene la
+   app abierta.
+3. En la app: **Ajustes → Avisos → Activar notificaciones** en cada dispositivo que deba recibirlos. En iPhone y iPad
+   (iOS 16.4 o posterior) la app debe estar instalada en la pantalla de inicio y abrirse desde ahí.
+
+**Cómo funciona:**
+- El dispositivo capturista publica qué vigilar (`POST /v1/avisos/config`): unidades con IMEI, lugares con **ubicación
+  exacta** (punto fijado, link de Google Maps o dirección encontrada; las ubicaciones aproximadas por colonia o municipio
+  no se usan) y la fecha de fin de cada documento (solo unidad, tipo de documento y fecha; nunca archivos ni datos de la
+  póliza).
+- Cada 5 minutos el Worker compara las posiciones con las geocercas: **llega** cuando la unidad está dentro del radio
+  (terminal 500 m, planta 400 m, patios 300 m, destino 250 m; se ajusta en Ajustes → Avisos → Geocercas) y **sale** cuando
+  se aleja más del radio × 1.2 + 100 m (el margen evita avisos falsos por el ruido del GPS). Posiciones con más de 30 min
+  no cuentan. Lo que ya estaba dentro al empezar a vigilar no genera una «llegada».
+- **Vencimientos:** una vez al día desde las 8:00 (hora de la Ciudad de México), resumen de los documentos que vencen en
+  30, 15, 7, 3 o 1 días, ese día, o que ya vencieron (al día siguiente y luego cada semana).
+- Los avisos van **cifrados de punta a punta** (Web Push, RFC 8291) y firmados con llaves **VAPID** que el Worker genera
+  la primera vez y guarda en su KV (`alr:vapid`): no hay claves en la app. Solo se envían a los servicios de push de los
+  navegadores (Google, Mozilla, Apple, Microsoft). Un dispositivo que ya no existe se elimina solo.
+- En Logística, llegar al destino sugiere **Descargando**, salir sugiere **En ruta vacío** y llegar al patio de vacíos
+  sugiere **Vacío** (con «Cambiar el estado automáticamente» se aplica solo y la bitácora lo marca «Geocerca»).
+
+**Escrituras de KV:** solo cuando hay llegadas o salidas, 1 al día por el resumen de vencimientos, 1 por hora como señal
+de la revisión automática y cuando la app publica cambios. Las llegadas y salidas no viajan en la información compartida:
+cada dispositivo las consulta al Worker.
+
 ## Consumo
 
-La app consulta cada 30 s (detalle de la unidad y Centro de Monitoreo) o 60 s (Inicio), solo con la pantalla visible; el portal del cliente, cada 30 s mientras está abierto. El Worker llama a IOPGPS como máximo una vez cada 30 s para toda la flota, muy por debajo del límite gratuito de Cloudflare (100 000 peticiones al día).
+La app consulta cada 30 s (detalle de la unidad y Centro de Monitoreo) o 60 s (Inicio), solo con la pantalla visible; el portal del cliente, cada 30 s mientras está abierto. El Worker llama a IOPGPS como máximo una vez cada 30 s para toda la flota, muy por debajo del límite gratuito de Cloudflare (100 000 peticiones al día). La revisión automática de avisos suma 288 ejecuciones al día (una consulta de la flota cada 5 min); la app consulta las llegadas y salidas cada 2 min con la pantalla visible.
 
 ## Prueba local
 
@@ -206,7 +245,7 @@ La app consulta cada 30 s (detalle de la unidad y Centro de Monitoreo) o 60 s (I
 node gps-proxy/test.mjs
 ```
 
-Ejecuta el Worker contra un servidor que imita la API de IOPGPS (firma `md5(md5(secreto)+time)`, `accessToken`, posiciones, ubicación, token vencido y proveedor caído). No usa credenciales reales.
+Ejecuta el Worker contra un servidor que imita la API de IOPGPS (firma `md5(md5(secreto)+time)`, `accessToken`, posiciones, ubicación, token vencido y proveedor caído), y prueba los avisos: geocercas, resumen de vencimientos, cifrado de los avisos (se descifran como lo haría el navegador) y firma VAPID. No usa credenciales reales.
 
 ## Rotar el secreto
 

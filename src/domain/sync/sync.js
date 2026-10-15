@@ -15,9 +15,10 @@ export const SYNC_STORES = ['companies', 'counters', 'operators', 'vehicles', 't
   'unitDocuments', 'unitPhotos', 'unitEvents'];
 const KEY_PATH = { companies: 'key', geocodes: 'key', destStates: 'key', tripBilling: 'tripId', operatorSettings: 'operatorId' };
 export const keyPathOf = (store) => KEY_PATH[store] || 'id';
-/* En un dispositivo de consulta solo se escribe en lo que es del propio dispositivo: sus ajustes y la ubicación de
-   direcciones buscadas en el mapa (caché; la siguiente foto la reemplaza) */
-export const READER_WRITABLE = new Set(['settings', 'geocodes']);
+/* En un dispositivo de consulta solo se escribe en lo que es del propio dispositivo: sus ajustes, la ubicación de
+   direcciones buscadas en el mapa (caché; la siguiente foto la reemplaza) y las llegadas y salidas que cada dispositivo
+   consulta directamente al Worker (geoEvents no viaja en la foto: así no gasta escrituras del plan gratuito de KV) */
+export const READER_WRITABLE = new Set(['settings', 'geocodes', 'geoEvents']);
 /* Ajustes propios de la sincronización: nunca viajan en respaldos ni en la foto */
 export const SYNC_SETTINGS = ['syncUrl', 'syncKey', 'syncRole', 'syncDevice', 'syncVer', 'syncAt', 'syncName'];
 

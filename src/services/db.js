@@ -26,10 +26,11 @@
  *   destStates   Mapa de viajes (v13): entidad asignada a mano a un texto de destino { key (texto normalizado), text,
  *     code ('01'–'32' o 'EXT'), by, at }; no modifica el viaje
  *   unitDocuments, unitPhotos, unitEvents   Unidades (v14): expediente de cada unidad del catálogo único (vehicles)
+ *   geoEvents   Avisos (v15): llegadas y salidas de las unidades en las geocercas (las registra el Worker; ver services/alerts.js)
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 14;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos | v14: expediente de unidades */
+const DB_VERSION = 15;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos | v14: expediente de unidades | v15: llegadas y salidas (geocercas) */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -48,6 +49,7 @@ export const S = {
   loadingYards: 'loadingYards', fullContainerLoads: 'fullContainerLoads', fullContainerDocuments: 'fullContainerDocuments', fullContainerEvents: 'fullContainerEvents',
   destStates: 'destStates',
   unitDocuments: 'unitDocuments', unitPhotos: 'unitPhotos', unitEvents: 'unitEvents',
+  geoEvents: 'geoEvents',
 };
 
 let dbp = null;
@@ -120,6 +122,8 @@ export function openDB() {
       mk(S.unitDocuments, { keyPath: 'id' }, [['unitId', 'unitId']]);
       mk(S.unitPhotos, { keyPath: 'id' }, [['unitId', 'unitId']]);
       mk(S.unitEvents, { keyPath: 'id' }, [['unitId', 'unitId']]);
+      /* v15 — Avisos: llegadas y salidas de cada unidad (por IMEI) en las geocercas */
+      mk(S.geoEvents, { keyPath: 'id' }, [['imei', 'imei'], ['at', 'at']]);
     };
     req.onsuccess = () => {
       const db = req.result;

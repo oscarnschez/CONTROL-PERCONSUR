@@ -35,6 +35,7 @@ export async function settingsScreen() {
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Integraciones</h3></div><div class="grp-b list-actions">
       <a class="row-btn" href="#/ajustes/gps">${icon.pin}<span>Rastreo GPS (IOPGPS)</span><small>${gpsConfigured() ? 'Configurado' : 'Sin configurar'}</small>${icon.chev}</a>
+      <a class="row-btn" href="#/ajustes/avisos">${icon.bell}<span>Avisos</span><small>Vencimientos, llegadas y salidas</small>${icon.chev}</a>
       <a class="row-btn" href="#/ajustes/compartir">${icon.people}<span>Información compartida</span><small>${esc(roleText(sr))}</small>${icon.chev}</a>
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Datos</h3></div><div class="grp-b list-actions">

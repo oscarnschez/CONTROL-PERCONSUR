@@ -154,6 +154,11 @@ async function relatedCounts(ids) {
   for (const r of await db.all(db.S.unitDocuments)) add(r.unitId, 'docs');
   return out;
 }
+/* Registro que se propone conservar: el que tiene más relaciones; si empatan, el del catálogo PERCONSUR */
+function keepDefault(g, counts) {
+  const tot = (id) => Object.values(counts[id] || {}).reduce((a, n) => a + n, 0);
+  return g.ids.slice().sort((a, b) => tot(b) - tot(a) || ((un.unitById(b) || {}).company === 'perconsur') - ((un.unitById(a) || {}).company === 'perconsur'))[0];
+}
 const FIELD_LBL = { eco: 'Número económico', placas: 'Placas', vin: 'VIN/NIV', brand: 'Marca', model: 'Modelo', year: 'Año' };
 export async function unitReviewScreen() {
   await un.loadUnits();
@@ -171,7 +176,7 @@ export async function unitReviewScreen() {
         <div class="grp-h"><h3>${g.kind === 'exact' ? 'Coincidencia sin diferencias' : 'Coincidencia con datos distintos'}</h3><span class="un-chip t-${g.kind === 'exact' ? 'info' : 'warn'}"><i></i>Por ${g.by.map((b) => ({ vin: 'VIN/NIV', placas: 'placas', eco: 'número económico' }[b])).join(', ')}</span></div>
         <div class="grp-b">
           ${g.conflicts.length ? `<p class="grp-note">Datos que no coinciden: <b>${g.conflicts.map((c) => FIELD_LBL[c]).join(', ')}</b>. Elige el registro cuyos datos se conservan; los vacíos se completan con los del otro.</p>` : '<p class="grp-note">Los datos no se contradicen. Elige el registro que se conserva.</p>'}
-          ${g.ids.map((id, i) => { const v = un.unitById(id), c = counts[id]; return `<label class="un-dupr"><input type="radio" name="keep${gi}" value="${esc(id)}"${i === 0 ? ' checked' : ''}>
+          ${g.ids.map((id) => { const v = un.unitById(id), c = counts[id]; return `<label class="un-dupr"><input type="radio" name="keep${gi}" value="${esc(id)}"${id === keepDefault(g, counts) ? ' checked' : ''}>
             <span><b>${esc(unitTitle(v))}</b> <small>${esc(getCompany(v.company || 'perconsur').short)}</small><br>
               ${['placas', 'vin', 'brand', 'model', 'year'].map((f) => `<span class="${g.conflicts.includes(f) ? 'un-conf' : ''}">${FIELD_LBL[f]}: ${esc(v[f] || '—')}</span>`).join(' · ')}<br>
               <small>Relacionado: ${c.fuel} recargas · ${c.logistics} operaciones · ${c.shop} registros de Taller · ${c.other} llenos/vacíos · ${c.docs} documentos</small></span></label>`; }).join('')}

@@ -18,16 +18,21 @@ import { summary as fullsSummary } from '../../domain/fulls/fulls.js';
 import { countByStatus, homeEntries } from '../../domain/logistics/logistics.js';
 import { icon } from '../components/icons.js';
 import * as mt from '../../services/maintenance.js';
+import * as un from '../../services/units.js';
+import { fleetSummary as unitsSummary } from '../../domain/units/units.js';
 
 const card = (m, meta) => `<a class="mod-card" href="#${m.route}"><span class="mod-ic">${icon[m.icon]}</span><span class="mod-tx"><b>${esc(m.title)}</b><small>${esc(m.desc)}</small>${meta ? `<span class="mod-meta">${meta}</span>` : ''}</span><span class="chev">${icon.chev}</span></a>`;
 
 export async function adminScreen() {
   const docs = await listDocuments(), ops = operatorList();
+  await un.loadUnits();
+  const us = unitsSummary(un.rows());
   await billing.loadBilling();
   await tariffs.loadTariffs();
   const cob = summarize(billing.items()), nDue = cob.trips.due.n + cob.delays.due.n, tfs = tariffs.sheets(), tfRoutes = tfs.reduce((a, x) => a + x.routes.length, 0);
   const meta = { operadores: `${ops.length} operador${ops.length === 1 ? '' : 'es'}`, cobranza: nDue ? `Por cobrar: ${money(cob.due)} | ${nDue} pendiente${nDue === 1 ? '' : 's'}` : 'Sin pendientes por cobrar', documentos: `${docs.length} documento${docs.length === 1 ? '' : 's'}`,
-    catalogos: `${listAll('vehicles').length} unidades | ${listAll('trailers').length} remolques`, tarifas: tfs.length ? `${tfs.length} apartado${tfs.length === 1 ? '' : 's'} | ${tfRoutes} ruta${tfRoutes === 1 ? '' : 's'}` : 'Sin apartados' };
+    catalogos: `${ops.length} operadores | ${listAll('trailers').length} remolques | destinos y terminales`,
+    unidades: us.total ? [`${us.total} unidad${us.total === 1 ? '' : 'es'}`, `${us.complete} con documentación completa`, us.expiredDocs ? `Vencidos: ${us.expiredDocs}` : '', us.soonDocs ? `${us.soonDocs} por vencer` : ''].filter(Boolean).join(' | ') : 'Sin unidades registradas', tarifas: tfs.length ? `${tfs.length} apartado${tfs.length === 1 ? '' : 's'} | ${tfRoutes} ruta${tfRoutes === 1 ? '' : 's'}` : 'Sin apartados' };
   return screen(`<div class="page wide hub"><header class="page-top"><h1 class="title">Administración</h1></header>
     <div class="mod-list">${ADMIN_MODULES.map((m) => card(m, meta[m.key])).join('')}</div></div>`);
 }

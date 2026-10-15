@@ -25,10 +25,11 @@
  *     remolques), sus documentos uno por uno (el archivo vive en attachments) y su historial
  *   destStates   Mapa de viajes (v13): entidad asignada a mano a un texto de destino { key (texto normalizado), text,
  *     code ('01'–'32' o 'EXT'), by, at }; no modifica el viaje
+ *   unitDocuments, unitPhotos, unitEvents   Unidades (v14): expediente de cada unidad del catálogo único (vehicles)
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 13;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos */
+const DB_VERSION = 14;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos | v14: expediente de unidades */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -46,6 +47,7 @@ export const S = {
   tariffSheets: 'tariffSheets',
   loadingYards: 'loadingYards', fullContainerLoads: 'fullContainerLoads', fullContainerDocuments: 'fullContainerDocuments', fullContainerEvents: 'fullContainerEvents',
   destStates: 'destStates',
+  unitDocuments: 'unitDocuments', unitPhotos: 'unitPhotos', unitEvents: 'unitEvents',
 };
 
 let dbp = null;
@@ -114,6 +116,10 @@ export function openDB() {
       mk(S.fullContainerEvents, { keyPath: 'id' }, [['loadId', 'loadId'], ['createdAt', 'createdAt']]);
       /* v13 — Mapa de viajes: entidad asignada a mano a un texto de destino que no se pudo identificar (no cambia el viaje) */
       mk(S.destStates, { keyPath: 'key' });
+      /* v14 — Unidades: documentos vehiculares, fotografías (con su fecha de captura) e historial de cada unidad (unitId = id del catálogo) */
+      mk(S.unitDocuments, { keyPath: 'id' }, [['unitId', 'unitId']]);
+      mk(S.unitPhotos, { keyPath: 'id' }, [['unitId', 'unitId']]);
+      mk(S.unitEvents, { keyPath: 'id' }, [['unitId', 'unitId']]);
     };
     req.onsuccess = () => {
       const db = req.result;

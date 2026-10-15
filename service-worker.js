@@ -211,6 +211,9 @@ const CDN = [
 ];
 const APP_CACHE = 'pcs-app-' + VERSION;
 const EXT_CACHE = 'pcs-ext-v1';
+/* Librerías grandes que no se precargan (OCR): se guardan la primera vez que se usan y sobreviven a las actualizaciones */
+const LIB_CACHE = 'pcs-lib-v1';
+const isLib = (url) => /\/vendor\/ocr\//.test(url.pathname);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -254,6 +257,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  if (isLib(url)) {
+    event.respondWith((async () => {
+      const lib = await caches.open(LIB_CACHE);
+      const hit = await lib.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+      try { const r = await fetch(req); if (r.ok) lib.put(req, r.clone()); return r; } catch (e) { return new Response('', { status: 504, statusText: 'Sin conexión' }); }
+    })());
+    return;
+  }
   event.respondWith((async () => {
     const app = await caches.open(APP_CACHE);
     if (req.mode === 'navigate') {

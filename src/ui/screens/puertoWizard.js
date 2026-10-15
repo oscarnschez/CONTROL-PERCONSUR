@@ -7,6 +7,8 @@ import { go, back } from '../../core/router.js';
 import { el, getPath, setPath, on } from '../../core/dom.js';
 import * as drafts from '../../services/drafts.js';
 import * as media from '../../services/media.js';
+import { pickUnit } from '../components/unitPicker.js';
+import { unitById } from '../../services/units.js';
 import * as cat from '../../services/catalogs.js';
 import { getCompany } from '../../services/companies.js';
 import { nextFolio, resetFolio } from '../../services/folios.js';
@@ -73,15 +75,15 @@ export async function puertoWizard({ company, step }, q) {
   }
 
   function stepTransporte() {
-    const v = cat.vehicleByEco(owner, s.eco);
+    const v = (s.unitId && unitById(s.unitId)) || cat.vehicleByEco(owner, s.eco);
     return group('Unidad y operador', `
       ${pickFld({ label: 'Nombre del operador', path: 'operador', value: s.operador })}
       <div class="row2">
-        ${pickFld({ label: 'No. económico', path: 'eco', value: s.eco ? ecoLabel(s.eco) : '', ph: 'Elegir' , sub: v && v.desc ? v.desc : '' })}
+        ${pickFld({ label: 'No. económico', path: 'eco', value: s.eco ? ecoLabel(s.eco) : '', ph: 'Elegir' , sub: unitSub(v) })}
         ${fld({ label: 'Placas de la unidad', path: 'placasU', value: s.placasU, t: 'upper', cap: 'characters' })}
       </div>
       ${pickFld({ label: 'Placas del remolque', path: 'placasR', value: s.placasR, sub: trailerDesc(s.placasR) })}
-      <p class="grp-note">Al elegir el número económico se llenan solas las placas de la unidad. Si las cambias, se recuerdan para la próxima vez.</p>`)
+      <p class="grp-note">La unidad se elige del catálogo único PERCONSUR — Unidades y sus placas se llenan solas. Si las cambias aquí, solo cambian en este documento; las placas de la unidad se actualizan en su expediente.</p>`)
       + group('Rastreo GPS', `
       ${swRow({ label: 'Mostrar botón de rastreo GPS en la nota', path: 'showTrack', checked: s.showTrack !== false })}
       <div data-show="track" ${s.showTrack === false ? 'hidden' : ''}>
@@ -283,6 +285,8 @@ export async function puertoWizard({ company, step }, q) {
   body.addEventListener('input', onInput);
   body.addEventListener('change', onInput);
 
+  /* Marca y modelo (o descripción) de la unidad del catálogo, debajo del número económico */
+  function unitSub(v) { return v ? [v.brand, v.model].filter(Boolean).join(' ') || v.desc || '' : ''; }
   /* ===== Selectores con catálogo ===== */
   function trailerDesc(p) { const t = cat.list('trailers', owner).find((x) => x.placas === p); return t ? [cat.trailerTypeLabel(t.type), t.desc].filter(Boolean).join(' | ') : ''; }
   on(body, 'click', '[data-pick]', async (e, b) => {
@@ -294,14 +298,13 @@ export async function puertoWizard({ company, step }, q) {
       if (r.save) { await cat.save('operators', { company: owner, name: s.operador }); toast('Operador guardado en el catálogo'); }
       setPickDisplay(body, 'operador', s.operador);
     } else if (path === 'eco') {
-      const r = await openPicker({ title: 'Número económico', current: s.eco, placeholder: 'Buscar o escribir número', inputmode: 'numeric', autocap: 'none', transform: normEco,
-        items: cat.list('vehicles', owner).map((x) => ({ value: normEco(x.eco), label: ecoLabel(normEco(x.eco)), sub: [x.placas, x.desc].filter(Boolean).join(' | ') })), recents: recents('eco:' + company), canSave: true, newLabel: 'Usar unidad' });
+      /* Catálogo único PERCONSUR — Unidades: se guarda la relación (unitId) y se completan las placas */
+      const r = await pickUnit({ title: 'Número económico', currentId: s.unitId || '' });
       if (!r) return;
-      s.eco = normEco(r.value);
-      const v = cat.vehicleByEco(owner, s.eco);
+      const v = r.unit;
+      s.eco = r.eco; s.unitId = v ? v.id : null;
       if (v && v.placas) { s.placasU = v.placas; const pi = body.querySelector('[data-b="placasU"]'); if (pi) pi.value = s.placasU; }
-      if (r.save && !v) { await cat.save('vehicles', { company: owner, eco: s.eco, placas: s.placasU || '', desc: '' }); toast('Unidad guardada en el catálogo'); }
-      setPickDisplay(body, 'eco', ecoLabel(s.eco), 'Elegir', v && v.desc ? v.desc : '');
+      setPickDisplay(body, 'eco', ecoLabel(s.eco), 'Elegir', unitSub(v));
     } else if (path === 'placasR') {
       const r = await openPicker({ title: 'Placas del remolque', current: s.placasR, autocap: 'characters', transform: (v) => v.toUpperCase(),
         items: cat.trailerItems(owner), scope: cat.trailerScope('puerto'), recents: recents('remolque:' + company), canSave: true, saveLabel: 'Guardar en catálogo como chasis portacontenedor' });

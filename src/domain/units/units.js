@@ -17,7 +17,7 @@ export const SOON_DAYS = 15;
 
 export const DOC_TYPES = [
   { key: 'registration', label: 'Tarjeta de circulación', upload: 'Subir tarjeta de circulación', fields: ['issueDate', 'validUntil', 'folio'], validity: 'optional' },
-  { key: 'insurance', label: 'Póliza de seguro', upload: 'Subir póliza de seguro', fields: ['insurer', 'policyNumber', 'validFrom', 'validUntil'], validity: 'expected' },
+  { key: 'insurance', label: 'Póliza de seguro', upload: 'Subir póliza de seguro', fields: ['insurer', 'policyNumber', 'issueDate', 'validFrom', 'validUntil'], validity: 'expected' },
   { key: 'payment_complement', label: 'Complemento de pago', upload: 'Subir complemento de pago', fields: ['issueDate', 'validFrom', 'validUntil'], validity: 'required', multi: true },
   { key: 'mechanical_inspection', label: 'Verificación físico-mecánica', upload: 'Subir verificación físico-mecánica', fields: ['issueDate', 'validFrom', 'validUntil', 'folio'], validity: 'expected' },
   { key: 'low_emissions_certificate', label: 'Certificado de Bajas Emisiones Contaminantes', upload: 'Subir Certificado de Bajas Emisiones Contaminantes', fields: ['issueDate', 'validFrom', 'validUntil', 'folio'], validity: 'expected' },

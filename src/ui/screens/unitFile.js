@@ -18,6 +18,7 @@ import { isReadOnly } from '../../services/access.js';
 import { readText } from '../../services/docText.js';
 import { getCompany } from '../../services/companies.js';
 import { detectPeriod } from '../../domain/units/complement.js';
+import { extractPolicy, insurerOf } from '../../domain/units/policy.js';
 import {
   DOC_TYPES, DOC_KEYS, docType, FIELD_LABELS, VEHICLE_TYPES, vehicleTypeLabel, unitTitle, isActive, validityOf, complementState, daysText,
   dateShort, dateLong, VALIDITY,
@@ -33,6 +34,8 @@ export const chip = (v) => `<span class="un-chip t-${v.tone}"><i aria-hidden="tr
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 const SECTIONS = [['info', 'Información'], ['fotos', 'Fotografías'], ['docs', 'Documentación'], ['vigencias', 'Vigencias'], ['historial', 'Historial']];
 const EXTRACT = new Set(['payment_complement', 'insurance', 'mechanical_inspection', 'low_emissions_certificate']);
+/* Póliza: renglones que el OCR vuelve a leer (número de póliza y número de serie) y logotipo de la aseguradora */
+const POLICY_READ = { refine: [{ key: 'policy', re: /p[oó]liza\s*:/i }, { key: 'vin', re: /\bse(?:r|n)[il]?e\s*:/i }], header: true, needHeader: (t) => !insurerOf(t) };
 
 /* ===== Datos generales (alta y edición) ===== */
 export function unitForm(unit) {
@@ -348,13 +351,74 @@ export async function unitFileScreen({ id }, q) {
         <div class="uf-cands">${det.candidates.slice(0, 4).map((c, i) => `<button type="button" class="chip" data-cand="${i}">${esc(dateShort(c.from))} — ${esc(dateShort(c.to))}</button>`).join('')}</div></div>`;
     return `<div class="uf-det warn" data-det><p class="uf-det-h">No fue posible determinar el período con certeza.</p><p class="uf-det-s">No se encontró un periodo legible en el documento (${how}). Escribe las fechas o déjalas pendientes de verificación.</p></div>`;
   }
+  /* ----- Póliza de seguro: datos detectados (aseguradora, póliza, vigencia, año y número de serie) ----- */
+  function policyHTML(pol, method) {
+    const how = method === 'ocr' ? 'leído con OCR' : 'leído del texto del PDF';
+    const row = (k, v, cls = '') => `<div class="${cls}"><dt>${k}</dt><dd>${v || '<i>No detectado</i>'}</dd></div>`;
+    const other = pol.vin ? un.units().find((x) => x.id !== u.id && String(x.vin || '').toUpperCase() === pol.vin) : null;
+    const uaRow = (f, label, val, cur) => {
+      if (!val) return '';
+      if (String(cur || '').toUpperCase() === String(val).toUpperCase()) return `<p class="uf-det-s">${label}: ${esc(val)} (ya coincide con la unidad)</p>`;
+      const checked = !cur && !(f === 'vin' && !pol.vinOk);
+      return `<label class="uf-chk"><input type="checkbox" data-ua="${f}" value="${esc(val)}"${checked ? ' checked' : ''}><span>${label}: ${cur ? `<s>${esc(cur)}</s> → ` : '<i>vacío</i> → '}<b>${esc(val)}</b>${cur ? '<small>La unidad ya tiene otro valor: márcalo solo si la póliza es correcta</small>' : ''}${f === 'vin' && !pol.vinOk ? '<small>El dígito verificador no coincide: revísalo antes de usarlo</small>' : ''}</span></label>`;
+    };
+    return `<div class="uf-det ok uf-pol" data-pol>
+      <p class="uf-det-h">DATOS DETECTADOS EN LA PÓLIZA</p>
+      <dl class="uf-poldl">
+        ${row('Aseguradora', esc(pol.insurer))}${row('Número de póliza', pol.policyNumber ? `<span class="mono">${esc(pol.policyNumber)}</span>` : '')}
+        ${row(`Vigencia de la ${pol.vigenciaDe === 'inciso' ? 'póliza (del inciso)' : 'póliza'}`, pol.validFrom ? `${esc(dateShort(pol.validFrom))} — ${esc(dateShort(pol.validUntil))}` : '', 'wide')}
+        ${row('Año (modelo)', esc(pol.year))}${row('Número de serie (VIN)', pol.vin ? `<span class="mono">${esc(pol.vin)}</span><small${pol.vinOk ? ' class="ok"' : ''}>${pol.vinOk ? `${icon.check}Dígito verificador correcto` : 'Sin verificar'}</small>` : '', 'wide')}
+      </dl>
+      <p class="uf-det-s">${how}${pol.evidence.policyNumber && /lecturas/.test(pol.evidence.policyNumber) ? ` · póliza: ${esc(pol.evidence.policyNumber.replace(/^\S+ /, ''))}` : ''}${pol.issueDate ? ` · fecha de emisión ${esc(dateShort(pol.issueDate))} (no es la vigencia)` : ''}</p>
+      ${other ? `<p class="uf-cpw">${icon.alert}<span>Este número de serie ya está registrado en la ${esc(unitTitle(other))}. Revisa que la póliza corresponda a esta unidad.</span></p>` : ''}
+      ${pol.year || (pol.vin && !other) ? `<p class="uf-det-q">Datos de la ${esc(unitTitle(u))}</p>${uaRow('year', 'Año', pol.year, u.year)}${other ? '' : uaRow('vin', 'Número de serie', pol.vin, u.vin)}` : ''}
+      <p class="uf-det-q">¿Son correctos estos datos?</p>
+      <div class="sheet-acts"><button type="button" class="btn-primary" data-polconfirm>${icon.check}<span>Confirmar y llenar</span></button><button type="button" class="btn-secondary" data-poledit>${icon.edit}<span>Editar</span></button></div></div>`;
+  }
+  const unitPatchOf = (host) => Object.fromEntries([...host.querySelectorAll('[data-ua]:checked')].map((c) => [c.dataset.ua, c.value]));
+  const fillPolicy = (form, pol) => {
+    const set = (k, v) => { if (form.elements[k] && v) form.elements[k].value = v; };
+    set('insurer', pol.insurer); set('policyNumber', pol.policyNumber); set('issueDate', pol.issueDate); set('validFrom', pol.validFrom); set('validUntil', pol.validUntil);
+  };
+  /* Año y número de serie confirmados desde la póliza → ficha de la unidad (con su historial). Devuelve el texto para el aviso. */
+  async function applyUnitPatch(patch) {
+    if (!Object.keys(patch).length) return '';
+    try { u = await un.saveUnit(patch, u.id); return ` · unidad actualizada: ${Object.keys(patch).map((k) => (k === 'vin' ? 'número de serie' : 'año')).join(' y ')}`; }
+    catch (err) { return ` · no se actualizó la unidad: ${err.message}`; }
+  }
+  /* Volver a leer una póliza ya guardada (p. ej. subida antes de esta función) */
+  async function rereadPolicy(docId) {
+    const d = un.docById(docId); if (!d) return;
+    const body = document.createElement('div');
+    body.className = 'uf-dflow';
+    body.innerHTML = '<p class="uf-stage" data-stage>Leyendo la póliza…</p><div data-detbox></div>';
+    const sh = openSheet({ title: 'Datos de la póliza', body, full: true });
+    const stage = body.querySelector('[data-stage]'), blob = await un.blobOf(d.storageKey);
+    if (!blob) { stage.textContent = 'El archivo no está disponible en este dispositivo.'; return; }
+    const r = await readText(blob, { kind: d.kind, onStage: (t) => { stage.textContent = t; }, ...POLICY_READ });
+    const pl = r.text ? extractPolicy(r.text, { extra: r.extra, header: r.header }) : null;
+    if (!pl || !pl.found.length) { stage.textContent = 'No se encontraron datos legibles en la póliza. Puedes capturarlos en «Editar fechas y datos».'; return; }
+    stage.textContent = '';
+    body.querySelector('[data-detbox]').innerHTML = policyHTML(pl, r.method);
+    body.addEventListener('click', async (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.poledit !== undefined) { sh.close(); editDoc(docId); return; }
+      if (b.dataset.polconfirm === undefined) return;
+      const patch = unitPatchOf(body);
+      const docPatch = { insurer: pl.insurer || d.insurer, policyNumber: pl.policyNumber || d.policyNumber, issueDate: pl.issueDate || d.issueDate || null };
+      if (pl.validFrom) Object.assign(docPatch, { validFrom: pl.validFrom, validUntil: pl.validUntil, verificationStatus: 'confirmed', dateSource: 'extracted' });
+      try { await un.updateDocument(docId, docPatch); const extra = await applyUnitPatch(patch); toast(`Datos de la póliza guardados${extra}`, { ms: 4000 }); sh.close(); draw(); }
+      catch (err) { toast(err.message, { type: 'warn' }); }
+    });
+  }
+
   async function docFlow(type, file) {
     const T = docType(type);
     const body = document.createElement('div');
     body.className = 'uf-dflow';
     body.innerHTML = `<div class="uf-dfile">${icon.file}<span><b>${esc(file.name || 'Documento')}</b><small>${(file.size / 1048576).toFixed(2)} MB · validando…</small></span></div><div data-prev class="uf-dprev"></div><p class="uf-stage" data-stage></p><div data-detbox></div>
       <form class="op-form" data-f hidden>${fieldsHTML(type)}<button type="submit" class="btn-primary block" data-savedoc>Guardar documento</button><button type="button" class="btn-ghost block" data-cancel>Cancelar</button></form>`;
-    let urlP = null, insp = null, det = null, method = null, confirmed = false, extracted = { from: null, to: null };
+    let urlP = null, insp = null, det = null, method = null, confirmed = false, extracted = { from: null, to: null }, pol = null, unitPatch = {};
     const sh = openSheet({ title: T.label, body, full: true, onClose: () => { if (urlP) URL.revokeObjectURL(urlP); } });
     const form = body.querySelector('[data-f]'), stage = body.querySelector('[data-stage]');
     try { insp = await un.inspectDoc(file); }
@@ -366,10 +430,15 @@ export async function unitFileScreen({ id }, q) {
     form.hidden = false;
     if (EXTRACT.has(type) && (insp.kind === 'pdf' || insp.display)) {
       stage.textContent = 'Leyendo el documento…';
-      const r = await readText(file, { kind: insp.kind, onStage: (t) => { stage.textContent = t; } });
+      const r = await readText(file, { kind: insp.kind, onStage: (t) => { stage.textContent = t; }, ...(type === 'insurance' ? POLICY_READ : {}) });
       method = r.method;
+      const pl = type === 'insurance' && !(r.error && !r.text) ? extractPolicy(r.text, { extra: r.extra, header: r.header }) : null;
       if (r.error && !r.text) { stage.textContent = 'No se pudo leer el documento automáticamente. Escribe las fechas o déjalas pendientes de verificación.'; }
-      else {
+      else if (pl && pl.found.length) {
+        pol = pl; stage.textContent = '';
+        det = pl.validFrom ? { status: 'found', from: pl.validFrom, to: pl.validUntil, evidence: pl.evidence.vigencia || '', check: '', confidence: 'alta' } : null;
+        body.querySelector('[data-detbox]').innerHTML = policyHTML(pl, method);
+      } else {
         det = detectPeriod(r.text);
         stage.textContent = '';
         if (type !== 'payment_complement' && det.status === 'none') det = null;
@@ -384,6 +453,13 @@ export async function unitFileScreen({ id }, q) {
       if (b.dataset.editdates !== undefined && det) { setDates(det.from, det.to); confirmed = false; form.elements.validFrom.focus(); }
       if (b.dataset.cand !== undefined && det) { const c = det.candidates[+b.dataset.cand]; setDates(c.from, c.to); confirmed = false; body.querySelectorAll('[data-cand]').forEach((x) => x.classList.toggle('on', x === b)); }
       if (b.dataset.usex !== undefined && det) { if (det.extra.insurer && form.elements.insurer) form.elements.insurer.value = det.extra.insurer; if (det.extra.policyNumber && form.elements.policyNumber) form.elements.policyNumber.value = det.extra.policyNumber; }
+      if (b.dataset.polconfirm !== undefined && pol) {
+        fillPolicy(form, pol); unitPatch = unitPatchOf(body);
+        if (pol.validFrom) { extracted = { from: pol.validFrom, to: pol.validUntil }; confirmed = true; }
+        body.querySelectorAll('[data-ua]').forEach((c) => { c.disabled = true; });
+        b.closest('.sheet-acts').innerHTML = `<p class="uf-det-ok">${icon.check}Datos confirmados${Object.keys(unitPatch).length ? ' · la unidad se actualizará al guardar' : ''}</p>`;
+      }
+      if (b.dataset.poledit !== undefined && pol) { fillPolicy(form, pol); unitPatch = unitPatchOf(body); confirmed = false; form.elements.policyNumber.focus(); }
       if (b.dataset.cancel !== undefined) sh.close();
     });
     form.addEventListener('submit', async (e) => {
@@ -397,7 +473,11 @@ export async function unitFileScreen({ id }, q) {
       fields.dateSource = sameAsExtracted ? 'extracted' : hasDates || fields.noExpiry ? 'manual' : 'pending';
       if (det) fields.extraction = { method, status: det.status, from: det.from || null, to: det.to || null, evidence: det.evidence || '', check: det.check || '', confidence: det.confidence || '', at: Date.now() };
       const btn = form.querySelector('[data-savedoc]'); btn.disabled = true;
-      try { await un.addDocument(u.id, type, file, insp, fields); toast(`${T.label} guardado${fields.verificationStatus === 'pending' && T.validity !== 'optional' ? ' · vigencia por verificar' : ''}`); sh.close(); sec = 'docs'; draw(); }
+      try {
+        await un.addDocument(u.id, type, file, insp, fields);
+        const extra = await applyUnitPatch(pol ? unitPatch : {});
+        toast(`${T.label} guardado${fields.verificationStatus === 'pending' && T.validity !== 'optional' ? ' · vigencia por verificar' : ''}${extra}`, { ms: extra ? 4000 : 2600 }); sh.close(); sec = 'docs'; draw();
+      }
       catch (err) { btn.disabled = false; toast(err.message, { type: 'warn', ms: 4500 }); }
     });
   }
@@ -436,12 +516,14 @@ export async function unitFileScreen({ id }, q) {
     const T = docType(d.docType);
     const acts = [{ label: 'Ver documento', value: 'view', icon: icon.eye }];
     if (!ro) acts.push({ label: 'Reemplazar', value: 'replace', icon: icon.upload, sub: 'La versión actual queda en el historial' }, { label: 'Editar fechas y datos', value: 'edit', icon: icon.calendar });
+    if (!ro && d.docType === 'insurance') acts.push({ label: 'Leer datos de la póliza', value: 'reread', icon: icon.refresh, sub: 'Aseguradora, póliza, vigencia, año y número de serie' });
     acts.push({ label: 'Ver historial', value: 'hist', icon: icon.list });
     if (!ro) acts.push({ label: 'Archivar', value: 'archive', icon: icon.folder, sub: 'Deja de contar como vigente; se conserva en el historial' });
     const v = await actionSheet({ title: T.label, message: d.name, actions: acts });
     if (v === 'view') viewDoc(docId);
     else if (v === 'replace') chooseDoc(d.docType);
     else if (v === 'edit') editDoc(docId);
+    else if (v === 'reread') rereadPolicy(docId);
     else if (v === 'hist') docHistory(d.docType);
     else if (v === 'archive') { try { await un.archiveDocument(docId); toast('Documento archivado'); draw(); } catch (err) { toast(err.message, { type: 'warn' }); } }
   }

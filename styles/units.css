@@ -233,3 +233,17 @@
 }
 .uf-pvacts .sheet-acts>:only-child{grid-column:1 / -1}
 .un-fsec{margin:8px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+/* Póliza: datos detectados */
+.uf-poldl{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin:0 0 8px}
+.uf-poldl .wide{grid-column:1 / -1}
+.uf-poldl dt{font-size:var(--fs-footnote);color:var(--ink-2)}
+.uf-poldl dd{margin:0;font-size:var(--fs-body);font-weight:700;overflow-wrap:anywhere;display:flex;flex-direction:column;gap:2px}
+.uf-poldl dd small{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-caption);font-weight:600;color:var(--ink-2)}
+.uf-poldl dd small.ok{color:var(--ok)}
+.uf-poldl dd small .ic{width:13px;height:13px}
+.uf-poldl dd i{font-weight:500;color:var(--muted)}
+.uf-chk{display:flex;align-items:flex-start;gap:10px;margin:6px 0;font-size:var(--fs-subhead);line-height:1.35}
+.uf-chk input{flex:none;width:20px;height:20px;margin-top:1px;accent-color:var(--blue)}
+.uf-chk span{display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.uf-chk small{font-size:var(--fs-caption);color:#8A4F00}
+.uf-chk s{color:var(--muted)}

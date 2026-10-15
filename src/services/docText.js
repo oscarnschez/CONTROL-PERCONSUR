@@ -63,62 +63,110 @@ export async function renderPage(pdf, n, scale = 2) {
   return c;
 }
 
+/* ===== OCR ===== */
+async function sourceOf(image) {
+  if (!(image instanceof Blob)) return { src: image, w: image.width, h: image.height, done: () => {} };
+  const u = URL.createObjectURL(image);
+  const src = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('No se pudo abrir la imagen')); im.src = u; });
+  return { src, w: src.naturalWidth, h: src.naturalHeight, done: () => URL.revokeObjectURL(u) };
+}
 /*
- * Prepara la imagen para el OCR (en una copia): la amplía hasta ~2600 px de ancho (las capturas de pantalla y fotos
- * pequeñas tienen letras de 8–10 px y el OCR confunde las diagonales de las fechas), escala de grises y más contraste.
+ * Copia de una zona de la imagen preparada para el OCR (el original no se toca): ampliada k veces y en escala de
+ * grises; mode 'c' = más contraste, número = blanco y negro con ese umbral.
  */
-async function prepare(image) {
-  let src = image, w, h, done = () => {};
-  if (image instanceof Blob) {
-    const u = URL.createObjectURL(image);
-    src = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('No se pudo abrir la imagen')); im.src = u; });
-    done = () => URL.revokeObjectURL(u);
-    w = src.naturalWidth; h = src.naturalHeight;
-  } else { w = image.width; h = image.height; }
-  const k = Math.max(1, Math.min(4, 2600 / w));
-  const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
+function crop(src, sx, sy, sw, sh, k, mode = 'c') {
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.imageSmoothingQuality = 'high'; x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(src, 0, 0, c.width, c.height); done();
+  x.imageSmoothingQuality = 'high'; x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
   const d = x.getImageData(0, 0, c.width, c.height), px = d.data;
   for (let i = 0; i < px.length; i += 4) {
     const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-    const v = Math.max(0, Math.min(255, (g - 128) * 1.6 + 150));
+    const v = mode === 'c' ? Math.max(0, Math.min(255, (g - 128) * 1.6 + 150)) : g < mode ? 0 : 255;
     px[i] = px[i + 1] = px[i + 2] = v;
   }
   x.putImageData(d, 0, 0);
   return c;
 }
-
-/* OCR en español; onProgress(0–1) */
-export async function ocr(image, onProgress) {
+async function newWorker(onProgress) {
   const T = await script(OCR + 'tesseract.min.js', 'Tesseract');
-  const worker = await T.createWorker('spa', 1, {
+  return T.createWorker('spa', 1, {
     workerPath: OCR + 'worker.min.js', corePath: OCR, langPath: OCR.replace(/\/$/, ''), gzip: true, workerBlobURL: false, cacheMethod: 'none',
     logger: (m) => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress); },
   });
+}
+/* Variantes para releer un renglón: las letras pequeñas se confunden distinto con cada preparación (5/6, J/I, B/8) */
+const VARIANTS = [[2, 'c'], [2, 200], [3, 200], [3, 'c']];
+
+/*
+ * OCR de un documento: texto completo (imagen ampliada a ~2600 px de ancho, con más contraste) y, opcionalmente:
+ *   refine  [{ key, re }]  renglones que se vuelven a leer con varias preparaciones (p. ej. número de póliza y serie);
+ *                          → extra[key] = [textos] para elegir el valor más repetido o el que pasa su verificación
+ *   header  true           recuadro del logotipo (esquina superior izquierda) leído aparte → header
+ * → { text, extra, header }
+ */
+export async function ocrDocument(image, { onProgress, refine = [], header = false } = {}) {
+  const { src, w, h, done } = await sourceOf(image);
+  const worker = await newWorker(onProgress);
   try {
-    const { data } = await worker.recognize(await prepare(image));
-    return data.text || '';
-  } finally { await worker.terminate(); }
+    const k = Math.max(1, Math.min(4, 2600 / w));
+    const main = crop(src, 0, 0, w, h, k, 'c');
+    const { data } = await worker.recognize(main, {}, { text: true, blocks: refine.length > 0 });
+    const out = { text: data.text || '', extra: {}, header: '' };
+    if (refine.length) {
+      const lines = (data.blocks || []).flatMap((b) => (b.paragraphs || []).flatMap((p) => p.lines || []));
+      for (const { key, re } of refine) {
+        const ln = lines.find((l) => re.test(l.text || ''));
+        if (!ln || !ln.bbox) continue;
+        const { x0, y0, x1, y1 } = ln.bbox, pad = 6;
+        const sx = Math.max(0, x0 / k - pad), sy = Math.max(0, y0 / k - pad), sw = Math.min(w - sx, (x1 - x0) / k + 2 * pad), sh = Math.min(h - sy, (y1 - y0) / k + 2 * pad);
+        out.extra[key] = [];
+        for (const [kk, mode] of VARIANTS) out.extra[key].push(((await worker.recognize(crop(src, sx, sy, sw, sh, kk, mode))).data.text || '').trim());
+      }
+    }
+    if (header) {
+      const texts = [];
+      for (const [fw, fh] of [[0.32, 0.13], [0.5, 0.2]]) texts.push(((await worker.recognize(crop(src, 0, 0, w * fw, Math.min(h, w * fh), 3, 'c'))).data.text || '').trim());
+      out.header = texts.join('\n');
+    }
+    return out;
+  } finally { done(); await worker.terminate(); }
+}
+/* OCR en español; onProgress(0–1) → texto */
+export async function ocr(image, onProgress) { return (await ocrDocument(image, { onProgress })).text; }
+
+/* Logotipo de la primera página de un PDF (cuando el texto del PDF no trae el nombre de la aseguradora) → texto */
+export async function ocrHeader(blob) {
+  try {
+    const c = await renderPage(await openPdf(blob), 1, 2.5);
+    return (await ocrDocument(c, { header: true })).header;
+  } catch (e) { console.warn('encabezado', e); return ''; }
 }
 
-/* Lee el texto de un PDF o imagen (se intenta primero el texto del PDF) */
-export async function readText(blob, { kind, onStage } = {}) {
+/*
+ * Lee el texto de un PDF o imagen (se intenta primero el texto del PDF).
+ * refine / header: ver ocrDocument (solo cuando se usa OCR; en un PDF con texto, header se lee si needHeader(texto)).
+ * → { text, method:'pdf-text'|'ocr'|'none', pages, extra, header, error? }
+ */
+export async function readText(blob, { kind, onStage, refine = [], header = false, needHeader = null } = {}) {
+  const prog = (p) => onStage && onStage(`Leyendo con OCR… ${Math.round(p * 100)} %`);
   try {
     if (kind === 'pdf') {
       onStage && onStage('Leyendo el texto del PDF…');
       const r = await pdfText(blob);
-      if (r.text.replace(/\s/g, '').length >= 40) return { text: r.text, method: 'pdf-text', pages: r.pages };
+      if (r.text.replace(/\s/g, '').length >= 40) {
+        let head = '';
+        if (header && needHeader && needHeader(r.text)) { onStage && onStage('Leyendo el logotipo…'); head = await ocrHeader(blob); }
+        return { text: r.text, method: 'pdf-text', pages: r.pages, extra: {}, header: head };
+      }
       onStage && onStage('PDF escaneado: leyendo con OCR…');
-      const c = await renderPage(r.pdf, 1, 2.2);
-      const text = await ocr(c, (p) => onStage && onStage(`Leyendo con OCR… ${Math.round(p * 100)} %`));
-      return { text, method: 'ocr', pages: r.pages };
+      const o = await ocrDocument(await renderPage(r.pdf, 1, 2.2), { onProgress: prog, refine, header });
+      return { ...o, method: 'ocr', pages: r.pages };
     }
     onStage && onStage('Leyendo la imagen con OCR…');
-    const text = await ocr(blob, (p) => onStage && onStage(`Leyendo con OCR… ${Math.round(p * 100)} %`));
-    return { text, method: 'ocr', pages: 1 };
+    const o = await ocrDocument(blob, { onProgress: prog, refine, header });
+    return { ...o, method: 'ocr', pages: 1 };
   } catch (e) {
     console.warn('lectura de documento', e);
-    return { text: '', method: 'none', pages: 0, error: e.message || 'No se pudo leer el documento' };
+    return { text: '', method: 'none', pages: 0, extra: {}, header: '', error: e.message || 'No se pudo leer el documento' };
   }
 }

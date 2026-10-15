@@ -25,6 +25,7 @@ import { isReadOnly } from './access.js';
 import { loadLib } from './libs.js';
 import { normImage } from './camera.js';
 import { readExif } from '../domain/units/exif.js';
+import { trackURL } from '../domain/shared/format.js';
 import {
   DOC_KEYS, docType, checkUnit, unitStatus, todayIn, OPS_TZ, SOON_DAYS, duplicateGroups, mergedData, normEco, isActive, unitTitle, byEco,
 } from '../domain/units/units.js';
@@ -69,8 +70,8 @@ export const statusOf = (u, day = today()) => unitStatus(u, docs || [], day, { c
 export function rows(day = today()) { return units().map((unit) => ({ unit, st: statusOf(unit, day), photo: currentPhoto(unit.id, 'front') })); }
 
 /* ===== Datos generales ===== */
-const UNIT_FIELDS = ['eco', 'placas', 'vin', 'brand', 'model', 'year', 'vehicleType', 'color', 'active', 'notes', 'desc'];
-const FIELD_NAMES = { eco: 'número económico', placas: 'placas', vin: 'VIN/NIV', brand: 'marca', model: 'modelo', year: 'año', vehicleType: 'tipo', color: 'color', active: 'estado', notes: 'observaciones', desc: 'descripción' };
+const UNIT_FIELDS = ['eco', 'placas', 'vin', 'brand', 'model', 'year', 'vehicleType', 'color', 'active', 'notes', 'desc', 'gpsDeviceId', 'trackingUrl'];
+const FIELD_NAMES = { eco: 'número económico', placas: 'placas', vin: 'VIN/NIV', brand: 'marca', model: 'modelo', year: 'año', vehicleType: 'tipo', color: 'color', active: 'estado', notes: 'observaciones', desc: 'descripción', gpsDeviceId: 'IMEI del GPS', trackingUrl: 'enlace de rastreo' };
 /* Crea o actualiza una unidad. Lanza un error con .fields si hay datos inválidos o duplicados. */
 export async function saveUnit(input, id = null) {
   guardRO();
@@ -82,14 +83,20 @@ export async function saveUnit(input, id = null) {
   if (data.placas !== undefined) data.placas = data.placas.toUpperCase();
   if (data.vin !== undefined) data.vin = data.vin.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (data.active !== undefined) data.active = data.active === 'no' ? 'no' : '';
+  if (data.gpsDeviceId !== undefined) { data.gpsDeviceId = data.gpsDeviceId.replace(/\D/g, ''); data.gpsProvider = data.gpsDeviceId ? 'iopgps' : ''; }
   const next = { ...(cur || {}), ...data };
   const err = checkUnit(next, allVehicles(), id);
+  /* GPS: el mismo IMEI no puede estar en dos unidades; el enlace de rastreo debe ser válido */
+  if (next.gpsDeviceId && !/^\d{8,20}$/.test(next.gpsDeviceId)) err.gpsDeviceId = 'El IMEI del GPS debe tener solo números (normalmente 15).';
+  else if (next.gpsDeviceId && allVehicles().some((v) => v.id !== id && !v.mergedInto && String(v.gpsDeviceId || '') === next.gpsDeviceId)) err.gpsDeviceId = 'Ese IMEI ya está vinculado a otra unidad.';
+  if (next.trackingUrl && !trackURL(next.trackingUrl)) err.trackingUrl = 'El enlace de rastreo no es válido.';
   if (Object.keys(err).length) { const e = new Error(Object.values(err)[0]); e.fields = err; throw e; }
   const now = Date.now(), who = actor();
   let rec;
   if (cur) {
     const diff = UNIT_FIELDS.filter((f) => data[f] !== undefined && String(cur[f] || '') !== String(data[f] || ''));
     if (!diff.length) return cur;
+    if (data.gpsDeviceId === undefined) delete next.gpsProvider;
     const before = Object.fromEntries(diff.map((f) => [f, cur[f] || '']));
     rec = await cat.save('vehicles', { ...next, updatedAt: now, updatedBy: who, revisions: [...(cur.revisions || []), { at: now, by: who, before }].slice(-50) });
     await addEvent(rec.id, data.active !== undefined && diff.length === 1 && diff[0] === 'active' ? (data.active === 'no' ? 'unit_inactive' : 'unit_active') : 'unit_updated',

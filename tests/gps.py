@@ -114,10 +114,10 @@ try:
     pg.goto(BASE+'#/'); pg.wait_for_timeout(800); ok(pg.locator('.lgh-loc').count()==0 and pg.locator('.lgh-map').count()==0 and pg.locator('.lgh-card').count()==2,'sin configurar: las tarjetas quedan como antes (sin mapa)')
     pg.goto(BASE+'#/operacion/logistica/u/'+vid); pg.wait_for_timeout(800); ok(pg.locator('.gps').count()==0,'sin configurar ni enlace: no aparece sección GPS')
     # catálogo: IMEI y enlace de rastreo
-    pg.goto(BASE+'#/catalogos/vehicles'); pg.wait_for_timeout(500); pg.locator('[data-id]').first.click(); pg.wait_for_selector('.cat-form')
-    ok(pg.locator('.cat-form [name=gpsDeviceId]').count()==1 and pg.locator('.cat-form [name=trackingUrl]').count()==1,'catálogo de unidades: IMEI y enlace de rastreo')
-    pg.fill('.cat-form [name=trackingUrl]','https://www.iopgps.com/main.html#/tracking?token=x'); pg.locator('.cat-form button[type=submit]').click(); pg.wait_for_timeout(400)
     first=pg.evaluate("async()=>{const c=await import('./src/services/catalogs.js'); const v=c.list('vehicles','perconsur')[0]; return v.id}")
+    pg.goto(BASE+'#/unidades/'+first); pg.wait_for_selector('.uf-page'); pg.locator('.nav-act[data-edit]').click(); pg.wait_for_selector('.un-form')
+    ok(pg.locator('.un-form [name=gpsDeviceId]').count()==1 and pg.locator('.un-form [name=trackingUrl]').count()==1,'Unidades (expediente): IMEI y enlace de rastreo')
+    pg.fill('.un-form [name=trackingUrl]','https://www.iopgps.com/main.html#/tracking?token=x'); pg.locator('.un-form button[type=submit]').click(); pg.wait_for_timeout(500)
     pg.goto(BASE+'#/operacion/logistica/u/'+first); pg.wait_for_timeout(700)
     ok(pg.locator('.gps-mini a[href*="iopgps"]').count()==1,'fase 0: «Abrir rastreo GPS» con el enlace de la unidad'); shot(pg,'g05_enlace')
     pg.emulate_media(color_scheme='dark')

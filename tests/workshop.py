@@ -195,10 +195,10 @@ try:
     pg.goto(BASE+'#/operacion/logistica'); pg.wait_for_timeout(700)
     ok(pg.locator('.lg-card .mt-av').count()>=1,'tablero de Logística: etiqueta «En taller» en la unidad')
     # 32) Catálogo → Ver historial de mantenimiento
-    pg.goto(BASE+'#/catalogos/vehicles'); pg.wait_for_timeout(600)
-    pg.locator('.row').filter(has_text='U21').first.click(); pg.wait_for_timeout(400)
-    ok(sheet(pg).locator('a').filter(has_text='Ver historial de mantenimiento').count()==1,'catálogo: acceso «Ver historial de mantenimiento»')
-    sheet(pg).locator('a').filter(has_text='Ver historial de mantenimiento').click(); pg.wait_for_timeout(800)
+    pg.goto(BASE+'#/unidades'); pg.wait_for_timeout(600)
+    pg.locator('.un-card').filter(has_text='UNIDAD 021').first.click(); pg.wait_for_timeout(600)
+    ok(pg.locator('.uf-sec a').filter(has_text='Historial de mantenimiento').count()==1,'expediente de la unidad: acceso «Historial de mantenimiento»')
+    pg.locator('.uf-sec a').filter(has_text='Historial de mantenimiento').click(); pg.wait_for_timeout(800)
     ok('/operacion/taller/equipo/u/' in pg.url,'abre el historial dentro de Taller')
     # 17, 19) Reporte individual con vista previa
     pg.goto(BASE+f'#/operacion/taller/orden/{oid}'); pg.wait_for_timeout(700)

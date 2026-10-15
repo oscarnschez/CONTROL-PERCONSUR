@@ -47,6 +47,9 @@ export function unitForm(unit) {
     <div class="row2">${f('color', 'Color (opcional)', 'autocapitalize="words"')}
       <label class="fld"><span class="fl">Estado</span><span class="sel-w"><select class="in" name="active"><option value=""${v.active !== 'no' ? ' selected' : ''}>Activa</option><option value="no"${v.active === 'no' ? ' selected' : ''}>Inactiva</option></select><span class="sel-ic">${icon.down}</span></span></label></div>
     <label class="fld"><span class="fl">Observaciones</span><textarea class="in" name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
+    <p class="fl un-fsec">GPS (opcional)</p>
+    ${f('gpsDeviceId', 'IMEI del GPS', 'inputmode="numeric" maxlength="20" placeholder="15 dígitos"')}
+    ${f('trackingUrl', 'Enlace de rastreo GPS', 'type="url" inputmode="url" autocapitalize="none" spellcheck="false"')}
     <button type="submit" class="btn-primary block">${unit ? 'Guardar cambios' : 'Agregar unidad'}</button>
     ${unit ? '<p class="grp-note">Cambiar placas o número económico no rompe ninguna relación: la unidad se identifica por su identificador interno. Los documentos ya generados conservan los datos con los que se emitieron.</p>' : '<p class="grp-note">La unidad queda en el catálogo único PERCONSUR y se puede elegir en los formularios de todas las empresas.</p>'}
   </form>`;
@@ -54,7 +57,7 @@ export function unitForm(unit) {
     let saved = null;
     const sh = openSheet({ title: unit ? `Editar ${unitTitle(unit)}` : 'Agregar unidad', body, onClose: () => resolve(saved) });
     const form = sh.body.querySelector('form');
-    form.addEventListener('input', (e) => { if (e.target.name === 'placas' || e.target.name === 'vin') e.target.value = e.target.value.toUpperCase(); if (e.target.name === 'eco' || e.target.name === 'year') e.target.value = e.target.value.replace(/\D/g, ''); });
+    form.addEventListener('input', (e) => { if (e.target.name === 'placas' || e.target.name === 'vin') e.target.value = e.target.value.toUpperCase(); if (e.target.name === 'eco' || e.target.name === 'year' || e.target.name === 'gpsDeviceId') e.target.value = e.target.value.replace(/\D/g, ''); });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       form.querySelectorAll('[data-err]').forEach((x) => { x.textContent = ''; });

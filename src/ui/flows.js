@@ -47,6 +47,7 @@ export function docHTML(type, data, company) {
 /* ===== Nuevo documento ===== */
 export function openNewSheet() {
   const body = `<div class="new-opts">
+    <button type="button" class="new-opt" data-t="orden"><span class="new-ic">${icon.clipboard}</span><span class="new-tx"><b>Orden de servicio</b><small>Operación | Expediente completo del viaje</small></span><span class="chev">${icon.chev}</span></button>
     <button type="button" class="new-opt" data-t="puerto"><span class="new-ic">${icon[DIVISION_ICON.puerto]}</span><span class="new-tx"><b>Nota de entrega</b><small>División Puerto</small></span><span class="chev">${icon.chev}</span></button>
     <button type="button" class="new-opt" data-t="campo"><span class="new-ic">${icon[DIVISION_ICON.campo]}</span><span class="new-tx"><b>Asignación de unidades</b><small>División Campo</small></span><span class="chev">${icon.chev}</span></button>
     <button type="button" class="new-opt" data-t="viaje"><span class="new-ic">${icon.people}</span><span class="new-tx"><b>Viaje de operador</b><small>Administración | Operadores</small></span><span class="chev">${icon.chev}</span></button>
@@ -56,7 +57,7 @@ export function openNewSheet() {
   sh.body.querySelectorAll('.new-opt').forEach((b) => b.addEventListener('click', () => {
     sh.close();
     const t = b.dataset.t;
-    if (t === 'puerto') startPuerto(); else if (t === 'campo') startCampo(); else if (t === 'viaje') startOperatorTrip();
+    if (t === 'orden') go('/operacion/ordenes/nueva'); else if (t === 'puerto') startPuerto(); else if (t === 'campo') startCampo(); else if (t === 'viaje') startOperatorTrip();
     else import('./screens/fuel.js').then((m) => m.startFuelRecord(null, () => go('/operacion/combustible')));
   }));
 }
@@ -67,7 +68,15 @@ export async function startOperatorTrip() {
   if (!list.length) { toast('No hay operadores en el catálogo. Agrégalos en Catálogos → Operadores.', { type: 'info', ms: 4000 }); return; }
   const multi = new Set(list.map((o) => o.company)).size > 1;
   const r = await openPicker({ title: 'Operador del viaje', allowNew: false, placeholder: 'Buscar operador', items: list.map((o) => ({ value: o.id, label: o.name, sub: multi ? o.companyShort : '' })) });
-  if (r && r.value) go(`/operadores/${r.value}?nuevo=viaje`);
+  if (!r || !r.value) return;
+  const how = await chooseTripKind();
+  if (how === 'order') go(`/operacion/ordenes/nueva?operador=${encodeURIComponent(r.value)}`);
+  if (how === 'trip') go(`/operadores/${r.value}?nuevo=viaje`);
+}
+/* Un viaje nuevo puede ser una orden de servicio completa o solo el registro financiero (viajes pasados o sin operación) */
+export function chooseTripKind() {
+  return actionSheet({ title: 'Registrar viaje', message: 'La orden de servicio crea, al despachar, la operación de Logística y el viaje financiero (una sola vez).',
+    actions: [{ label: 'Orden de servicio completa', sub: 'Captura, documentos, asignación, despacho, entrega y cierre', value: 'order', style: 'primary' }, { label: 'Solo registro financiero', sub: 'Tarifa, impuestos y comisión del operador', value: 'trip' }] });
 }
 
 export function chooseCompany() {
@@ -202,6 +211,8 @@ export async function generate(draft) {
     };
     await docs.saveDocument(doc);
     await drafts.removeDraft(draft.id);
+    /* Documento preparado desde una Orden de Servicio: queda como versión nueva en su expediente */
+    if (draft.data.serviceOrderId) { try { await (await import('../services/orders.js')).recordGenerated(draft.data.serviceOrderId, doc); } catch (e) { console.warn('orden de servicio', e); } }
     fileCache.set(docId, new File([out.blob], filename, { type: 'application/pdf' }));
     if (draft.type === 'puerto') {
       const s = draft.data;

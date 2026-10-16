@@ -34,7 +34,7 @@ try:
     pg.locator('.tabbar [data-tab="settings"]').click(); pg.wait_for_timeout(600)
     ok('Catálogos' not in pg.locator('.page').inner_text() and 'Administrar catálogos' not in pg.locator('.page').inner_text(),'Ajustes ya no contiene Catálogos')
     pg.locator('.tabbar .tab-new').click(); pg.wait_for_timeout(400)
-    nopts=[x.inner_text().split('\n')[0] for x in pg.locator('.new-opt').all()]; ok(nopts==['Nota de entrega','Asignación de unidades','Viaje de operador','Recarga de combustible'],'Nuevo: '+', '.join(nopts)); shot(pg,'n03_nuevo'); pg.keyboard.press('Escape')
+    nopts=[x.inner_text().split('\n')[0] for x in pg.locator('.new-opt').all()]; ok(nopts==['Orden de servicio','Nota de entrega','Asignación de unidades','Viaje de operador','Recarga de combustible'],'Nuevo: '+', '.join(nopts)); shot(pg,'n03_nuevo'); pg.keyboard.press('Escape')
     # ===== Remolques: tipo y filtros =====
     pg.goto(BASE+'#/catalogos/trailers'); pg.wait_for_timeout(700)
     for placas,tipo in [('61-UT-2M','chasis'),('63-VB-1R','chasis'),('08-UW-6K','jaula'),('13-UW-6K','tolva')]:

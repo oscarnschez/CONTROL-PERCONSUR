@@ -2,9 +2,10 @@ import { board, homeEntries, countByStatus, filterEntries, groupByStatus, confli
 import { LOGISTICS_STATUSES, STATUS_ORDER, showOnHome, isWorking, statusLabel } from '../src/config/logistics.js';
 const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
 // Estados base: valores internos separados del texto
-ok(LOGISTICS_STATUSES.map((s) => s.key).join(',') === 'loading,to_destination,empty,empty_transit,unloading,inactive', 'estados internos (nuevo: Cargando)');
-ok(LOGISTICS_STATUSES.map((s) => s.label).join(' | ') === 'Cargando | En ruta a destino | Vacío | En ruta vacío | Descargando | Inactiva', 'textos visibles');
-ok(STATUS_ORDER.map((s) => s.key).join(',') === 'loading,to_destination,empty_transit,unloading,empty,inactive', 'orden de filtros y grupos (Cargando primero)');
+ok(LOGISTICS_STATUSES.map((s) => s.key).join(',') === 'assigned,loading,to_destination,empty,empty_transit,unloading,inactive', 'estados internos (Asignada para el despacho de órdenes; Cargando)');
+ok(LOGISTICS_STATUSES.map((s) => s.label).join(' | ') === 'Asignada | Cargando | En ruta a destino | Vacío | En ruta vacío | Descargando | Inactiva', 'textos visibles');
+ok(STATUS_ORDER.map((s) => s.key).join(',') === 'assigned,loading,to_destination,empty_transit,unloading,empty,inactive', 'orden de filtros y grupos (Asignada y Cargando primero)');
+import('../src/config/logistics.js').then(({ isWorking, showOnHome }) => ok(isWorking('assigned') && showOnHome('assigned'), 'Asignada: cuenta como operación activa (impide otra) y aparece en Inicio → Unidades en operación'));
 ok(statusLabel('desconocido') === 'Inactiva', 'estado desconocido se muestra como Inactiva');
 // Regla de Inicio: estado ≠ Inactiva y estado ≠ Vacío
 ok(['loading', 'to_destination', 'empty_transit', 'unloading'].every(showOnHome) && !showOnHome('inactive') && !showOnHome('empty'), 'regla de Inicio exacta (Cargando aparece en Inicio)');

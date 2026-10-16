@@ -249,7 +249,7 @@ async function pullFiles(want) {
 /* Después de cambiar la base: cachés, avisos a las pantallas y redibujo (sin cerrar hojas ni mover el desplazamiento) */
 async function afterChange() {
   await reloadAll();
-  ['logistics:change', 'empties:change', 'fulls:change', 'geo:change', 'maintenance:change', 'units:change', 'pcs:sync'].forEach((n) => window.dispatchEvent(new CustomEvent(n)));
+  ['logistics:change', 'empties:change', 'fulls:change', 'geo:change', 'maintenance:change', 'units:change', 'serviceorders:change', 'pcs:sync'].forEach((n) => window.dispatchEvent(new CustomEvent(n)));
   safeRefresh();
 }
 function safeRefresh() {

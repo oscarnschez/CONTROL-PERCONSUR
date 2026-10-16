@@ -11,6 +11,9 @@
  * y el enlace deja de dar la ubicación al cerrar la operación, al revocarlo o al vencer.
  */
 export const LOGISTICS_STATUSES = [
+  /* Despacho de una Orden de Servicio sin movimiento todavía: aparece en Unidades en operación como asignada y no se comparte
+     con el cliente hasta que salga (el Worker no conoce este estado: ver domain/tracking/tracking.js) */
+  { key: 'assigned', label: 'Asignada', short: 'Asignada', tone: 'indigo', rank: 0, working: true, hint: 'Despachada, pendiente de salida' },
   { key: 'loading', label: 'Cargando', short: 'Cargando', tone: 'violet', rank: 1, working: true, hint: 'En el lugar de carga' },
   { key: 'to_destination', label: 'En ruta a destino', short: 'En ruta', tone: 'blue', rank: 2, working: true, hint: 'Cargada, rumbo al lugar de entrega' },
   { key: 'empty', label: 'Vacío', short: 'Vacío', tone: 'light', rank: 5, working: false, hint: 'Sin carga, disponible' },

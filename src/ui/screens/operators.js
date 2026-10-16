@@ -28,6 +28,7 @@ import { tripTaxes, sumTaxes } from '../../domain/operators/taxes.js';
 import { buildTripsWorkbook } from '../../domain/operators/tripsExport.js';
 import { openTripForm, openTripDetail, openLoanForm, openAdjustmentForm, openSettingsForm } from './operatorForms.js';
 import { attachCount } from './tripDocs.js';
+import { chooseTripKind } from '../flows.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -330,9 +331,9 @@ export async function operatorScreen({ id }, q) {
   on(root, 'click', '[data-mmore]', () => { mShown += 50; render(); });
   on(root, 'click', '[data-profile]', () => openProfileForm(op, render));
   root.addEventListener('change', (e) => { const t = e.target; if (t.dataset.tc) { tcustom[t.dataset.tc] = t.value; render(); } });
-  on(root, 'click', '[data-new]', (e, b) => {
+  on(root, 'click', '[data-new]', async (e, b) => {
     const k = b.dataset.new;
-    if (k === 'viaje') openTripForm(op, null, refresh);
+    if (k === 'viaje') { const how = await chooseTripKind(); if (how === 'order') go(`/operacion/ordenes/nueva?operador=${encodeURIComponent(op.id)}`); if (how === 'trip') openTripForm(op, null, refresh); }
     if (k === 'prestamo') openLoanForm(op, null, refresh);
     if (k === 'ajuste') openAdjustmentForm(op, null, refresh);
   });

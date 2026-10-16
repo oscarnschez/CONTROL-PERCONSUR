@@ -1,0 +1,133 @@
+/* ===== Órdenes de Servicio (listado, expediente, formulario y piezas en otros módulos) ===== */
+.so-title{text-transform:uppercase;letter-spacing:.02em}
+.so-new{margin:0 0 16px}
+.so-tiles{grid-template-columns:repeat(2,1fr)}
+@media (min-width:520px){.so-tiles{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
+.so-tile{position:relative;text-align:left;color:var(--ink);font:inherit;min-height:64px;cursor:pointer;border-left:4px solid var(--lg-dot)}
+.so-tile.on{border-color:var(--tint);border-left-color:var(--lg-dot);box-shadow:0 0 0 1.5px var(--tint)}
+.so-tile small{display:block;line-height:1.25}
+
+/* Tarjeta del listado */
+.so-cards{display:flex;flex-direction:column;gap:10px;margin:0 0 10px}
+.so-card{display:block;min-width:0;padding:12px 14px 10px 13px;border-radius:var(--r);border:1px solid var(--line);border-left:4px solid var(--lg-dot);background:var(--surface);color:var(--ink);text-decoration:none;box-shadow:var(--shadow-1);transition:transform .14s ease,background-color .18s}
+.so-card:active{background:var(--fill);transform:scale(.99)}
+.so-c1{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
+.so-folio{font-size:var(--fs-body);font-weight:700;letter-spacing:.01em}
+.so-folio.big{margin:6px 0 2px;font-size:var(--fs-title2);line-height:1.15;overflow-wrap:anywhere}
+.so-div{font-size:var(--fs-caption);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.so-c1 .lg-st{margin-left:auto}
+.so-cust{margin-top:6px;font-weight:600;overflow-wrap:anywhere}
+.so-meta{margin-top:4px;font-size:var(--fs-footnote);color:var(--ink-2);overflow-wrap:anywhere}
+.so-meta .dot{margin:0 6px;color:var(--muted)}
+.so-nextl{display:flex;align-items:flex-start;gap:6px;margin-top:8px;font-size:var(--fs-footnote);font-weight:600;color:var(--lg-c)}
+.so-nextl .ic{flex:none;width:16px;height:16px;margin-top:1px}
+.so-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.so-foot small{color:var(--muted);font-size:var(--fs-caption)}
+.so-open{pointer-events:none;min-height:36px}
+.so-open .ic{width:14px;height:14px}
+.so-legacy{display:flex;align-items:center;gap:12px;margin:18px 0 0;padding:12px 14px;border-radius:var(--r);border:1px dashed var(--line-2);color:var(--ink);text-decoration:none}
+.so-legacy>span{flex:1;display:flex;flex-direction:column;gap:2px}
+.so-legacy small{color:var(--muted);font-size:var(--fs-footnote)}
+.so-legacy>.ic:first-child{flex:none;width:22px;height:22px;color:var(--tint)}
+
+/* Expediente */
+.so-hero-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.so-hero-top small{font-size:var(--fs-footnote);color:var(--muted)}
+.so-when{display:flex;align-items:center;gap:6px;margin-top:4px}
+.so-when .ic{width:16px;height:16px;color:var(--muted)}
+.so-nextbox{display:flex;flex-direction:column;gap:2px;padding:10px 12px;margin:0 0 12px;border-radius:var(--r-sm);background:var(--lg-bg);color:var(--lg-c)}
+.so-nextbox small{font-size:var(--fs-caption);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.so-nextbox b{font-size:var(--fs-body)}
+.so-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.so-acts>button{min-height:44px}
+.so-final{display:flex;align-items:center;gap:12px;padding:12px;margin:0 0 12px;border-radius:var(--r-sm);background:var(--ok-t);color:var(--ok)}
+.so-final.off{background:var(--fill);color:var(--ink-2)}
+.so-final>.ic{flex:none;width:26px;height:26px}
+.so-final div{display:flex;flex-direction:column}
+.so-final b{letter-spacing:.04em}
+.so-final small{color:var(--ink-2);font-size:var(--fs-footnote)}
+.so-pend{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-footnote);color:var(--ink-2)}
+.so-pend .ic{flex:none;width:16px;height:16px;color:var(--warn)}
+
+/* Avance por etapas (clic: abre la pestaña de esa etapa) */
+.so-prog{display:flex;gap:4px;list-style:none;margin:0 0 14px;padding:0 0 4px;overflow-x:auto;scrollbar-width:none}
+.so-prog::-webkit-scrollbar{display:none}
+.so-prog li{flex:1 0 auto;min-width:76px}
+.so-prog button{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;min-height:52px;padding:4px 2px;border:0;background:none;color:var(--muted);font:inherit;font-size:var(--fs-caption);cursor:pointer}
+.so-prog i{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:2px solid var(--line-2);font-style:normal;font-weight:700;font-size:var(--fs-caption);background:var(--surface)}
+.so-prog i .ic{width:14px;height:14px}
+.so-prog li.st-done button{color:var(--ink-2)}
+.so-prog li.st-done i{border-color:var(--ok);background:var(--ok);color:var(--on-color)}
+.so-prog li.st-current button{color:var(--tint);font-weight:700}
+.so-prog li.st-current i{border-color:var(--tint);color:var(--tint);box-shadow:0 0 0 3px var(--blue-t)}
+.so-prog li.st-off i{opacity:.5}
+
+/* Pestañas */
+.so-tabs{position:sticky;top:0;z-index:2;display:flex;gap:6px;margin:0 -16px 14px;padding:6px 16px;overflow-x:auto;scrollbar-width:none;background:var(--canvas)}
+.so-tabs::-webkit-scrollbar{display:none}
+.so-tab{position:relative;flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:var(--r-pill);border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:inherit;font-size:var(--fs-subhead);white-space:nowrap;cursor:pointer}
+.so-tab.on{background:var(--blue-t);border-color:transparent;color:var(--tint);font-weight:700}
+.so-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.so-n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:var(--r-pill);background:var(--warn-t);color:var(--warn);font-style:normal;font-size:var(--fs-caption);font-weight:700}
+.so-panel{min-height:30vh}
+.so-panel .lg-st.sm{font-size:var(--fs-caption);padding:2px 8px 2px 7px}
+.so-states dd{display:flex;align-items:center}
+.so-links dd small,.so-fin dd small{display:block;color:var(--muted);font-size:var(--fs-footnote)}
+.so-src{display:flex;gap:8px;align-items:flex-start;margin:0 0 12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface-2);font-size:var(--fs-footnote);color:var(--ink-2)}
+.so-src>.ic{flex:none;width:16px;height:16px;margin-top:1px;color:var(--tint)}
+.so-src.warn>.ic{color:var(--warn)}
+.so-gen .att-tx b small.so-cur{margin-left:4px;padding:1px 6px;border-radius:var(--r-pill);background:var(--ok-t);color:var(--ok);font-size:var(--fs-caption)}
+.so-asg,.so-tl,.so-incs{list-style:none;margin:0;padding:0}
+.so-asg li,.so-tl li,.so-incs li{display:flex;flex-direction:column;gap:2px;padding:10px 0 10px 14px;border-left:2px solid var(--line-2);position:relative}
+.so-asg li::before,.so-tl li::before,.so-incs li::before{content:"";position:absolute;left:-5px;top:15px;width:8px;height:8px;border-radius:50%;background:var(--line-2)}
+.so-asg small,.so-tl small,.so-incs small{color:var(--muted);font-size:var(--fs-footnote)}
+.so-asg span,.so-tl span{font-size:var(--fs-subhead);color:var(--ink-2);overflow-wrap:anywhere}
+.so-tl li.src-logistica::before{background:var(--blue)}
+.so-tl li.src-llenos::before{background:#7C5CC4}
+.so-tl li.src-vacios::before{background:#1C8A9C}
+.so-tl li.src-orden::before{background:var(--brand-orange)}
+.so-incs li.crit::before{background:var(--danger)}
+.so-incs li.crit b{color:var(--danger)}
+.so-incs li.is-done{opacity:.7}
+.so-incs .btn-ghost{align-self:flex-start;margin:4px 0 0 -12px}
+
+/* Despacho */
+.so-dispatch .issue.static{cursor:default}
+.issues.warn{background:var(--blue-t)}
+.issues.warn .issues-h{color:var(--tint)}
+.so-auth{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:10px 0;border-top:1px solid color-mix(in srgb,var(--tint) 18%,transparent);font-size:var(--fs-subhead);cursor:pointer}
+.so-auth input,.so-radio input{flex:none;width:22px;height:22px;margin:0;accent-color:var(--tint)}
+.so-init{border:0;margin:0 0 12px;padding:0}
+.so-init legend{margin-bottom:6px}
+.so-radio{display:flex;gap:10px;align-items:center;min-height:44px;padding:4px 0;font-size:var(--fs-subhead);cursor:pointer}
+
+/* Formulario */
+.so-chip{background:var(--blue-t);color:var(--tint)}
+.so-types{display:flex;flex-direction:column;gap:8px}
+.so-type{display:flex;flex-direction:column;gap:2px;width:100%;min-height:56px;padding:10px 14px;border-radius:var(--r-sm);border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.so-type small{color:var(--muted);font-size:var(--fs-footnote)}
+.so-type.on{border-color:var(--tint);box-shadow:0 0 0 1.5px var(--tint);background:var(--blue-t)}
+.so-type:disabled{opacity:.45}
+.so-co{margin:0}
+
+/* Expediente documental */
+.so-dlist .att.off{opacity:.55}
+.so-dchk{display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer}
+.so-dchk input{flex:none;width:22px;height:22px;accent-color:var(--tint)}
+.so-dsum{margin:8px 0 0;font-size:var(--fs-subhead);color:var(--ink-2)}
+
+/* Inicio */
+.so-hsum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0 0 10px}
+.so-hk{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-height:56px;padding:8px 10px;border-radius:var(--r-sm);background:var(--lg-bg);color:var(--lg-c);text-decoration:none}
+.so-hk b{font-size:var(--fs-title3);font-variant-numeric:tabular-nums;line-height:1.1}
+.so-hk small{font-size:var(--fs-caption);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.so-hlist .row-l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.so-hlist .lg-st{font-size:var(--fs-caption);padding:1px 8px 1px 7px}
+
+/* Folio en Logística, Control de llenos y Control de vacíos */
+.so-folio-chip,.so-folio-tag{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 9px 3px 7px;border-radius:var(--r-pill);background:var(--lg-bg);color:var(--lg-c);font-family:var(--f-mono);font-size:var(--fs-caption);font-weight:700;text-decoration:none;white-space:nowrap}
+.so-folio-chip .ic,.so-folio-tag .ic{width:14px;height:14px}
+a.so-folio-chip{min-height:32px}
+.so-ask textarea{min-height:88px}
+.so-dossier{margin-top:12px}
+.so-prog{scroll-behavior:auto}

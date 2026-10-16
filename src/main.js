@@ -21,6 +21,9 @@ import { loadGeocodes } from './services/geocode.js';
 import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
 import { fullsScreen, fullDetailScreen } from './ui/screens/fulls.js';
 import { loadFulls } from './services/fulls.js';
+import { loadOrders } from './services/orders.js';
+import { ordersScreen, orderDetailScreen, ordersLegacyScreen } from './ui/screens/orders.js';
+import { orderNewScreen, orderEditScreen } from './ui/screens/orderForm.js';
 import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
 import { gpsMonitorScreen } from './ui/screens/gpsMonitor.js';
 import { startTracking } from './services/tracking.js';
@@ -123,6 +126,11 @@ function routes() {
   route('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
   route('/administracion', adminScreen, { name: 'admin', tabs: true, tab: 'admin' });
   route('/operacion', operationScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/ordenes', ordersScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/ordenes/nueva', capture(orderNewScreen), { name: 'wizard' });
+  route('/operacion/ordenes/vincular', capture(ordersLegacyScreen), { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/ordenes/:id', orderDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/ordenes/:id/editar/:step', capture(orderEditScreen), { name: 'wizard' });
   route('/operacion/logistica', logisticsScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/historial', logisticsHistoryScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/u/:id', logisticsUnitScreen, { name: 'op', tabs: true, tab: 'op' });
@@ -201,6 +209,8 @@ async function boot() {
     await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties(), loadFulls(), loadGeocodes()]);
     /* Taller (disponibilidad «En taller» en Logística e Inicio) */
     await loadMaintenance(false, { withFuel: false });
+    /* Órdenes de Servicio (expediente maestro; lee Control de llenos, Logística, vacíos y viajes ya cargados) */
+    await loadOrders().catch((e) => console.warn('órdenes', e));
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');

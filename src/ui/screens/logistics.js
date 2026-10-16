@@ -41,6 +41,8 @@ import * as al from '../../services/alerts.js';
 import { isReadOnly } from '../../services/access.js';
 import { dwellText } from '../../domain/alerts/alerts.js';
 import { TIPOS, tipoDesc } from '../../config/reference.js';
+import { orderForOp } from '../../services/orders.js';
+import { folioChip, folioTag } from './orderKit.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -62,7 +64,7 @@ const shopTag = (type, id) => (inShop(type, id) ? `<span class="mt-av">${icon.wr
 /* Tarjeta compacta del tablero: 1) qué unidad, 2) qué hace, 3) quién la opera, 4) a dónde va */
 function boardCard(e) {
   const v = lg.entryView(e), o = e.op, s = statusOf(e.status);
-  const ref = [o.reference ? `Ref. ${esc(o.reference)}` : '', o.deliveryPlace ? esc(o.deliveryPlace) : ''].filter(Boolean).join('<span class="dot">·</span>');
+  const ref = [folioTag(orderForOp(o.id)), o.reference ? `Ref. ${esc(o.reference)}` : '', o.deliveryPlace ? esc(o.deliveryPlace) : ''].filter(Boolean).join('<span class="dot">·</span>');
   return `<a class="lg-card lg-t-${s.tone}" href="${unitHref(e.unit.id)}">
     <div class="lg-c1"><span class="unit-badge">${esc(v.label)}</span>${statusChip(e.status)}${shopTag('vehicle', e.unit.id)}<span class="chev">${icon.chev}</span></div>
     <div class="lg-op">${v.operator ? esc(v.operator) : '<span class="muted">Sin operador</span>'}</div>
@@ -227,6 +229,7 @@ export async function logisticsUnitScreen({ id }) {
         <div class="lg-hero-top"><small>Estado de viaje</small>${statusChip(st.key, 'lg-big')}</div>
         ${(() => { const av = mt.availability('v:' + id); return `<p class="lg-hero-sub">Disponibilidad: ${av.inShop ? `<b>En taller</b> · <a class="link" href="#/operacion/taller/orden/${esc(av.order.id)}">${esc(av.order.folio)}</a>` : 'Disponible'} · <a class="link" href="#/operacion/taller/equipo/u/${esc(id)}">Historial de mantenimiento</a></p>`; })()}
         <p class="lg-hero-sub">${op ? `${esc(st.hint)} · actualizado ${esc(agoText(op.updatedAt))}` : 'Sin operación activa. La unidad se considera Inactiva hasta que se le asigne una operación.'}</p>
+        ${op && orderForOp(op.id) ? `<p class="lg-hero-sub so-lgord">Orden de servicio: ${folioChip(orderForOp(op.id))}</p>` : ''}
         ${op ? `<button type="button" class="btn-primary block lg" data-status>${icon.refresh}<span>Actualizar estado</span></button>`
     : `<button type="button" class="btn-primary block lg" data-new>${icon.plus}<span>Nueva asignación</span></button>`}
         ${empties.map((r) => `<a class="btn-secondary block ec-link" href="#/operacion/logistica/vacios/${esc(r.id)}">${icon.yard}<span>Ver control de vacío<small>${esc(r.containerNumber)} · ${esc(emptyLabel(r))}</small></span></a>`).join('')}
@@ -616,7 +619,7 @@ function homeCard(e) {
       <span class="lgh-pts"><span><small>Origen</small><b>${esc(o.origin || '—')}</b></span><span><small>Destino</small><b>${esc(o.destination || '—')}</b></span></span>
     </span>` : `<span class="lgh-route none">${icon.pin}<span>Ruta sin registrar</span></span>`}
     ${mapSlot(e.unit.id)}${gpsLine(e.unit.id)}${destLine(e)}
-    <span class="lgh-foot">${v.trailer ? trailerType(v.trailerType) : '<span class="lg-tt none">Sin remolque</span>'}${o.division ? `<span class="lgh-div">${esc(divisionLabel(o.division, true))}</span>` : ''}${o.reference ? `<span class="lgh-ref">Ref. ${esc(o.reference)}</span>` : ''}</span>
+    <span class="lgh-foot">${folioTag(orderForOp(o.id))}${v.trailer ? trailerType(v.trailerType) : '<span class="lg-tt none">Sin remolque</span>'}${o.division ? `<span class="lgh-div">${esc(divisionLabel(o.division, true))}</span>` : ''}${o.reference ? `<span class="lgh-ref">Ref. ${esc(o.reference)}</span>` : ''}</span>
   </button>`;
 }
 export function homeOpsHTML() {

@@ -27,10 +27,11 @@
  *     code ('01'–'32' o 'EXT'), by, at }; no modifica el viaje
  *   unitDocuments, unitPhotos, unitEvents   Unidades (v14): expediente de cada unidad del catálogo único (vehicles)
  *   geoEvents   Avisos (v15): llegadas y salidas de las unidades en las geocercas (las registra el Worker; ver services/alerts.js)
+ *   serviceOrders, serviceOrderEvents, serviceOrderFiles   Órdenes de Servicio (v16): expediente maestro del viaje (ver ORDENES.md)
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 15;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos | v14: expediente de unidades | v15: llegadas y salidas (geocercas) */
+const DB_VERSION = 16;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas | v12: control de llenos | v13: entidad de destinos | v14: expediente de unidades | v15: llegadas y salidas (geocercas) | v16: órdenes de servicio */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -50,6 +51,7 @@ export const S = {
   destStates: 'destStates',
   unitDocuments: 'unitDocuments', unitPhotos: 'unitPhotos', unitEvents: 'unitEvents',
   geoEvents: 'geoEvents',
+  serviceOrders: 'serviceOrders', serviceOrderEvents: 'serviceOrderEvents', serviceOrderFiles: 'serviceOrderFiles',
 };
 
 let dbp = null;
@@ -124,6 +126,10 @@ export function openDB() {
       mk(S.unitEvents, { keyPath: 'id' }, [['unitId', 'unitId']]);
       /* v15 — Avisos: llegadas y salidas de cada unidad (por IMEI) en las geocercas */
       mk(S.geoEvents, { keyPath: 'id' }, [['imei', 'imei'], ['at', 'at']]);
+      /* v16 — Órdenes de Servicio: la orden (relaciona carga, operación, viaje, vacío y documentos), su bitácora y sus archivos propios */
+      mk(S.serviceOrders, { keyPath: 'id' }, [['folio', 'folio'], ['division', 'division'], ['logisticsOperationId', 'logisticsOperationId'], ['fullLoadId', 'fullLoadId'], ['tripId', 'tripId']]);
+      mk(S.serviceOrderEvents, { keyPath: 'id' }, [['orderId', 'orderId'], ['at', 'at']]);
+      mk(S.serviceOrderFiles, { keyPath: 'id' }, [['orderId', 'orderId']]);
     };
     req.onsuccess = () => {
       const db = req.result;

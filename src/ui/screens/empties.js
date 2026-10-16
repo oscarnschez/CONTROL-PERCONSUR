@@ -26,6 +26,8 @@ import { openSheet, actionSheet, busy } from '../components/sheet.js';
 import { openPicker } from '../components/picker.js';
 import { toast } from '../components/toast.js';
 import { enterAdvances } from '../components/fields.js';
+import { orderForEmpty } from '../../services/orders.js';
+import { folioChip, folioTag } from './orderKit.js';
 
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 /* «Hoy · 16:30», «Mañana · 09:00», «08 oct · 16:30» */
@@ -47,7 +49,7 @@ function card(r) {
   const who = r.externalCarrier ? `<span class="ec-ext">Externo</span> ${esc(r.externalCarrierName || 'Sin transportista')}` : v.deliveryOperator ? esc(v.deliveryOperator) : '<i>Sin asignar</i>';
   return `<a class="ec-card lg-t-${s.tone}${late ? ' late' : ''}" href="${href(r.id)}">
     <div class="ec-c1"><b class="ec-num">${esc(r.containerNumber)}</b><span class="chev">${icon.chev}</span></div>
-    <div class="ec-st">${emptyChip(r.status)}${late ? lateChip() : ''}</div>
+    <div class="ec-st">${emptyChip(r.status)}${late ? lateChip() : ''}${folioTag(orderForEmpty(r))}</div>
     <dl class="ec-grid">
       <div class="wide"><dt>Patio</dt><dd>${v.yard ? esc(v.yard) : '<i>Sin asignar</i>'}</dd></div>
       <div><dt>${r.externalCarrier ? 'Transportista' : 'Operador'}</dt><dd>${who}</dd></div>
@@ -169,7 +171,7 @@ export async function emptyDetailScreen({ id }) {
         <button type="button" class="nav-act" data-more aria-label="Más acciones">${icon.more}</button></header>
       <section class="lg-hero ec-hero lg-t-${emptyStatus(r.status).tone}">
         <small>Contenedor</small><h1 class="ec-num big">${esc(r.containerNumber)}</h1>
-        <div class="ec-st">${emptyChip(r.status)}${late ? lateChip() : ''}</div>
+        <div class="ec-st">${emptyChip(r.status)}${late ? lateChip() : ''}${folioChip(orderForEmpty(r))}</div>
         ${open ? `<div class="ec-acts">
           <button type="button" class="btn-primary block lg" data-a="deliver">${icon.check}<span>Marcar como entregado</span></button>
           <div class="sheet-acts"><button type="button" class="btn-secondary" data-a="edit">${icon.edit}<span>${r.status === 'pending' ? 'Programar entrega' : 'Editar entrega'}</span></button>

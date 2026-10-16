@@ -235,6 +235,8 @@ html.kb-open .actionbar{display:none}
 .login-msg{min-height:22px;margin:-4px 2px 14px;font-size:var(--fs-subhead);color:var(--ink-2)}
 .login-msg.warn{color:var(--warn)}
 .login-msg:empty{margin-bottom:6px}
+.login-terms{margin:16px 0 0;text-align:center;color:var(--muted);font-size:var(--fs-footnote);line-height:1.45}
+.login-terms a{color:var(--tint);font-weight:600}
 .login-foot{margin:28px 0 0;text-align:center;color:var(--muted);font-size:var(--fs-footnote)}
 /* Aviso institucional de acceso restringido: sobrio, parte de la composición (no es un error ni bloquea nada) */
 .login-notice{display:flex;align-items:flex-start;gap:12px;margin:24px 0 0;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--tint);border-radius:var(--r-sm);background:var(--surface)}

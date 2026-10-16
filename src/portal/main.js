@@ -13,6 +13,10 @@ import { esc } from '../domain/shared/format.js';
 import { ageText } from '../domain/gps/gps.js';
 import { icon, trailerIcon } from '../ui/components/icons.js';
 import { copyrightText } from '../config/legal.js';
+import { PORTAL_NOTICE } from '../legal/texts.js';
+
+/* Aviso de privacidad integral: legal.html de la app (este código se carga desde ella) */
+const PRIVACY_URL = new URL('../../legal.html#privacidad', import.meta.url).href;
 import { tipoDesc } from '../config/reference.js';
 
 const root = document.getElementById('portal');
@@ -33,7 +37,7 @@ function frame() {
     <div class="pt-mapwrap" data-pt-mapwrap hidden><div class="pt-map" data-pt-map aria-label="Mapa con la ubicación del transporte" role="region"></div><div class="pt-mapmsg" data-pt-mapmsg hidden></div></div>
     <section class="pt-route" data-pt-route hidden></section>
     <section class="pt-load" data-pt-load aria-label="Unidad y carga" hidden></section>
-    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación y el estado del transporte mientras el servicio está activo.</span></p><p class="pt-copy">PERCONSUR · División Campo</p><p class="pt-web"><a href="https://www.perconsur.mx" target="_blank" rel="noopener">www.perconsur.mx</a></p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
+    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación y el estado del transporte mientras el servicio está activo.</span></p><p class="pt-copy">PERCONSUR · División Campo</p><p class="pt-web"><a href="https://www.perconsur.mx" target="_blank" rel="noopener">www.perconsur.mx</a></p><p class="pt-privacy">${esc(PORTAL_NOTICE)} <a href="${esc(PRIVACY_URL)}" target="_blank" rel="noopener">Aviso de privacidad</a></p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
 }
 function routeHTML(t) {
   return `<div class="pt-rt"><span class="pt-rt-dot a" aria-hidden="true"></span><div><small>Origen</small><b>${esc(t.origin || '—')}</b></div></div>

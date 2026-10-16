@@ -74,14 +74,16 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 .pt-legal{font-size:var(--fs-caption)}
 @media (prefers-color-scheme:dark){.pt-word{color:#E8EBF2}}
 
-/* Computadora: mapa amplio a la izquierda, estado y ruta a la derecha */
-/* Computadora: el mapa ocupa casi toda la pantalla (ancho y alto); estado, ruta y operador a la derecha */
+/* Computadora: la página usa todo el ancho de la ventana; el mapa ocupa todo el espacio libre (ancho y alto) y el estado,
+   la ruta y el operador van en una columna angosta a la derecha */
 @media (min-width:860px){
-  .pt{max-width:1720px;padding-left:calc(var(--sal) + 24px);padding-right:calc(var(--sar) + 24px);
-    grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:auto auto auto auto 1fr;grid-template-areas:"head head" "band band" "map card" "map route" "map foot";align-items:start;gap:16px}
-  .pt-head{grid-area:head}.pt-band{grid-area:band}.pt-card{grid-area:card}.pt-route{grid-area:route}.pt-mapwrap{grid-area:map}.pt-foot{grid-area:foot}
-  .pt-map{height:calc(100vh - 118px);height:calc(100dvh - 118px - var(--sat) - var(--sab));min-height:540px}
-  .pt.nomap{grid-template-columns:minmax(0,640px);grid-template-rows:none;justify-content:center;grid-template-areas:"head" "band" "card" "route" "foot"}
+  .pt{max-width:none;margin:0;min-height:100vh;min-height:100dvh;padding:calc(var(--sat) + 10px) calc(var(--sar) + 16px) calc(var(--sab) + 12px) calc(var(--sal) + 16px);
+    grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto auto auto auto 1fr;grid-template-areas:"head head" "band band" "map card" "map route" "map foot";align-items:start;gap:10px 14px}
+  .pt-head{grid-area:head}.pt-band{grid-area:band;margin-top:-2px}.pt-card{grid-area:card}.pt-route{grid-area:route}.pt-mapwrap{grid-area:map;align-self:stretch}.pt-foot{grid-area:foot}
+  .pt-mark{width:32px;height:32px}.pt-word{font-size:23px}
+  .pt-map{height:calc(100vh - 92px);height:calc(100dvh - 92px - var(--sat) - var(--sab));min-height:520px}
+  .pt-card,.pt-route{padding:14px}
+  .pt.nomap{max-width:700px;margin:0 auto;min-height:0;grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"head" "band" "card" "route" "foot"}
 }
-@media (min-width:1500px){.pt{grid-template-columns:minmax(0,1fr) 400px}}
+@media (min-width:1800px){.pt{grid-template-columns:minmax(0,1fr) 380px}}
 @media (prefers-reduced-motion:reduce){.pt-age.live i{animation:none}}

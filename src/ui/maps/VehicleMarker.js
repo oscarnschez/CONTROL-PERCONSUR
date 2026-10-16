@@ -1,24 +1,36 @@
 /*
- * Marcador de unidad para los mapas MapLibre (Centro de Monitoreo y portal del cliente).
- *   Figura  = tipo de remolque: chasis portacontenedor, jaula o tolva (sin clasificar → remolque genérico).
- *   Color   = estado operativo de Logística (mismos tonos que los chips de estado).
- *   Insignia = lo que reporta el GPS: flecha (en movimiento; apunta al rumbo si IOPGPS lo entrega), pausa (detenida) o
- *              señal apagada (sin señal reciente: el marcador se atenúa y no se presenta como posición actual).
+ * Marcador de unidad para los mapas MapLibre (Centro de Monitoreo y portal del cliente) y, con unitMarkHTML(), para los
+ * mapas pequeños de Logística e Inicio. Diseño sobrio, igual para todas las unidades:
+ *   Círculo  = color del estado operativo de Logística (mismos tonos que los chips: Cargando violeta, En ruta a destino
+ *              azul, En ruta vacío verde azulado, Descargando ámbar, Vacío gris claro, Inactiva gris).
+ *   Silueta  = tractocamión en blanco (el tipo de remolque se ve en la tarjeta y en la lista, no en el mapa).
+ *   Rumbo    = flecha pegada al círculo hacia donde avanza la unidad (si IOPGPS entrega el rumbo); sin rumbo, un halo
+ *              suave indica movimiento. Detenida: solo el círculo.
+ *   Sin señal reciente: círculo gris con borde punteado e insignia de señal apagada (no se presenta como posición actual).
+ *   Debajo, el número económico.
  * El marcador es un botón HTML (accesible con teclado y lector de pantalla). Al actualizar la posición se desliza de forma
  * breve y discreta del punto anterior al nuevo; si el salto es largo (> 3 km), la app está en segundo plano o el sistema
  * pide reducir el movimiento, cambia de lugar sin animación: nunca se dibuja un recorrido que no se conoce.
  */
-import { trailerIcon } from '../components/icons.js';
 import { esc } from '../../domain/shared/format.js';
 
 const SVG = (d, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
-const BADGE = {
-  moving: SVG('<path d="M12 4.5 18 18l-6-3.2L6 18z" fill="currentColor" stroke-width="1.6"/>'),
-  stopped: SVG('<path d="M9 7v10M15 7v10"/>'),
-  nosignal: SVG('<path d="M5 9.5a10 10 0 0 1 14 0M8 13a5.6 5.6 0 0 1 8 0"/><path d="M12 17h.01"/><path d="m4 4 16 16" stroke-width="2.2"/>'),
-  /* Portal del cliente: solo «ubicación actual» (sin movimiento ni velocidad) */
-  live: SVG('<circle cx="12" cy="12" r="4.5" fill="currentColor"/>'),
-};
+/* Insignia solo cuando el GPS no tiene señal reciente */
+const NOSIGNAL = SVG('<path d="M5 9.5a10 10 0 0 1 14 0M8 13a5.6 5.6 0 0 1 8 0"/><path d="M12 17h.01"/><path d="m4 4 16 16" stroke-width="2.2"/>');
+/*
+ * Figura del marcador (40×40): flecha de rumbo (se gira con --vm-rot), círculo del color del estado con aro blanco y la
+ * silueta de un tractocamión (caja, cabina con ventana y dos ruedas) en blanco.
+ */
+export const MARK = `<svg class="vm-svg" viewBox="0 0 40 40" aria-hidden="true">
+  <path class="vm-dir" d="M20 -1.4 25.4 5.4H14.6Z"/>
+  <circle class="vm-body" cx="20" cy="20" r="12.8"/>
+  <g class="vm-truck" transform="translate(11.2 10.8) scale(.72)">
+    <rect x="1" y="5" width="13.4" height="10" rx="1.3"/><path d="M15.6 8h4.6l3.3 3.7V15h-7.9z"/><path class="vm-win" d="M17.1 9.6h2.6l1.8 2h-4.4z"/>
+    <rect x="1" y="15" width="22.5" height="1.8" rx=".6"/><circle class="vm-wheel" cx="6" cy="18.2" r="2.3"/><circle class="vm-wheel" cx="18.6" cy="18.2" r="2.3"/>
+  </g></svg>`;
+/* Marcador estático (mapas Leaflet de Logística e Inicio): mismo diseño, sin botón ni animación */
+export const unitMarkHTML = ({ label = '', tone = 'blue', motion = 'stopped', cls = '' } = {}) =>
+  `<div class="vm vm-static${cls ? ' ' + esc(cls) : ''}" data-tone="${esc(tone)}" data-motion="${esc(motion)}"><span class="vm-pin">${MARK}</span>${motion === 'nosignal' ? `<span class="vm-badge">${NOSIGNAL}</span>` : ''}${label ? `<span class="vm-lbl">${esc(label)}</span>` : ''}</div>`;
 export const MOTION_TEXT = { moving: 'en movimiento', stopped: 'detenida', nosignal: 'sin señal reciente', live: 'ubicación actual' };
 const JUMP_M = 3000;
 
@@ -38,7 +50,7 @@ export class VehicleMarker {
     this.ml = ml; this.data = {}; this.onMove = onMove; this.raf = 0; this.map = null; this.selected = false;
     const el = document.createElement('button');
     el.type = 'button'; el.className = 'vm';
-    el.innerHTML = '<span class="vm-pin"><span class="vm-ic"></span><span class="vm-badge"></span></span><span class="vm-lbl"></span>';
+    el.innerHTML = `<span class="vm-pin">${MARK}</span><span class="vm-badge">${NOSIGNAL}</span><span class="vm-lbl"></span>`;
     if (onClick) el.addEventListener('click', (e) => { e.stopPropagation(); onClick(this.data.id); });
     this.el = el;
     this.marker = new ml.Marker({ element: el, anchor: 'center' }).setLngLat([data.lng, data.lat]);
@@ -55,8 +67,8 @@ export class VehicleMarker {
   setData(d) {
     const p = this.data, el = this.el;
     if (d.tone !== p.tone) el.dataset.tone = d.tone || 'blue';
-    if (d.motion !== p.motion) { el.dataset.motion = d.motion || 'stopped'; el.querySelector('.vm-badge').innerHTML = BADGE[d.motion] || BADGE.stopped; }
-    if (d.trailerType !== p.trailerType) el.querySelector('.vm-ic').innerHTML = trailerIcon(d.trailerType);
+    if (d.motion !== p.motion) el.dataset.motion = d.motion || 'stopped';
+    if (d.trailerType !== p.trailerType) el.dataset.trailer = d.trailerType || '';
     if (d.label !== p.label) { el.querySelector('.vm-lbl').textContent = d.label || ''; el.classList.toggle('no-lbl', !d.label); }
     const rot = d.motion === 'moving' && Number.isFinite(d.heading) ? `${Math.round(d.heading)}deg` : '';
     if (rot !== (p.motion === 'moving' && Number.isFinite(p.heading) ? `${Math.round(p.heading)}deg` : '')) el.style.setProperty('--vm-rot', rot || '0deg');

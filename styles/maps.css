@@ -3,39 +3,47 @@
  * controles y atribución. Lo comparten la app y el portal (ambos cargan tokens.css).
  */
 /* Color del estado de Logística (mismos tonos que los chips) */
-.vm,.vm-cl{--vm-c:#354FA3;--vm-lbl:#FFFFFF;--vm-lbl-ink:#1A2233;--vm-ring:#FFFFFF}
-.vm[data-tone="teal"]{--vm-c:#1C8A9C}
-.vm[data-tone="violet"]{--vm-c:#7C5CC4}
-.vm[data-tone="amber"]{--vm-c:#D48A0C}
-.vm[data-tone="light"]{--vm-c:#8D96A8}
-.vm[data-tone="gray"]{--vm-c:#68718A}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .vm,:root:not([data-theme="light"]) .vm-cl{--vm-lbl:#1C2230;--vm-lbl-ink:#E8EBF2;--vm-ring:#E8EBF2}}
-:root[data-theme="dark"] .vm,:root[data-theme="dark"] .vm-cl{--vm-lbl:#1C2230;--vm-lbl-ink:#E8EBF2;--vm-ring:#E8EBF2}
+.vm,.vm-cl{--vm-c:#354FA3;--vm-lbl:#FFFFFF;--vm-lbl-ink:#1A2233;--vm-ring:#FFFFFF;--vm-lbl-line:rgba(26,34,51,.14)}
+.vm[data-tone="violet"]{--vm-c:#6F4FC0}
+.vm[data-tone="teal"]{--vm-c:#16808F}
+.vm[data-tone="amber"]{--vm-c:#C9820A}
+.vm[data-tone="light"]{--vm-c:#8A93A5}
+.vm[data-tone="gray"]{--vm-c:#5B6478}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .vm,:root:not([data-theme="light"]) .vm-cl{--vm-lbl:#1C2230;--vm-lbl-ink:#E8EBF2;--vm-ring:#E8EBF2;--vm-lbl-line:rgba(232,235,242,.16)}}
+:root[data-theme="dark"] .vm,:root[data-theme="dark"] .vm-cl{--vm-lbl:#1C2230;--vm-lbl-ink:#E8EBF2;--vm-ring:#E8EBF2;--vm-lbl-line:rgba(232,235,242,.16)}
 
-/* Marcador de unidad: círculo con la figura del remolque + insignia GPS + número económico */
-.vm{width:42px;height:42px;padding:0;margin:0;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:inherit}
-.vm-pin{position:absolute;inset:2px;display:grid;place-items:center;border-radius:50%;background:var(--vm-c);color:var(--on-color);border:2.5px solid var(--vm-ring);
-  box-shadow:var(--shadow-2,0 2px 8px rgba(15,25,45,.22));transition:transform .22s var(--ease,ease),opacity .3s,filter .3s}
-.vm-ic{display:grid;place-items:center}
-.vm-ic .ic{width:23px;height:23px;stroke-width:1.9}
-.vm-badge{position:absolute;right:-7px;top:-7px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fff;color:#4A5468;box-shadow:var(--shadow-2,0 2px 8px rgba(15,25,45,.22))}
-.vm-badge svg{width:12px;height:12px;transition:transform .4s var(--ease,ease)}
-.vm[data-motion="moving"] .vm-badge{background:#1E7A4C;color:var(--on-color)}
-.vm.has-heading .vm-badge svg{transform:rotate(var(--vm-rot,0deg))}
-.vm[data-motion="live"] .vm-badge{background:#1E7A4C;color:var(--on-color)}
-.vm[data-motion="live"] .vm-badge svg{animation:vmLive 2s ease-in-out infinite}
-.vm[data-motion="nosignal"] .vm-pin{filter:grayscale(1);opacity:.66;border-style:dashed}
-.vm[data-motion="nosignal"] .vm-badge{background:#B4441A;color:var(--on-color)}
-.vm-lbl{position:absolute;left:50%;top:100%;transform:translate(-50%,3px);padding:2px 7px;border-radius:var(--r-xs);background:var(--vm-lbl);color:var(--vm-lbl-ink);
-  font:800 var(--fs-caption)/1.25 var(--font,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif);white-space:nowrap;box-shadow:var(--shadow-2,0 2px 8px rgba(15,25,45,.22));pointer-events:none}
+/* Marcador de unidad: círculo del color del estado con silueta de tractocamión, flecha de rumbo y número económico */
+.vm{position:relative;width:40px;height:40px;padding:0;margin:0;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:inherit}
+.vm-pin{position:absolute;inset:0;display:block;transition:transform .22s var(--ease,ease),opacity .3s,filter .3s;filter:drop-shadow(0 1.5px 2.5px rgba(15,25,45,.35))}
+.vm-svg{display:block;width:40px;height:40px;overflow:visible}
+.vm-body{fill:var(--vm-c);stroke:var(--vm-ring);stroke-width:2.4}
+.vm-dir{fill:var(--vm-c);stroke:var(--vm-ring);stroke-width:1.6;stroke-linejoin:round;transform-origin:20px 20px;transform:rotate(var(--vm-rot,0deg));opacity:0;transition:opacity .2s,transform .4s var(--ease,ease)}
+.vm.has-heading .vm-dir{opacity:1}
+.vm-truck{fill:#FFFFFF}
+.vm-win{fill:var(--vm-c)}
+.vm-wheel{fill:#FFFFFF;stroke:var(--vm-c);stroke-width:1.3}
+/* En movimiento sin rumbo conocido: halo suave del color del estado */
+.vm[data-motion="moving"]:not(.has-heading) .vm-pin::before,.vm[data-motion="live"] .vm-pin::before{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--vm-c);opacity:.35;animation:vmHalo 2.2s ease-out infinite;z-index:-1}
+/* Sin señal reciente: gris, aro punteado e insignia */
+.vm[data-motion="nosignal"] .vm-pin{filter:grayscale(1) drop-shadow(0 1px 2px rgba(15,25,45,.3));opacity:.72}
+.vm[data-motion="nosignal"] .vm-body{stroke-dasharray:3.2 2.4}
+.vm-badge{display:none;position:absolute;right:-4px;top:-4px;place-items:center;width:18px;height:18px;border-radius:50%;background:#A5431C;color:var(--on-color);box-shadow:0 0 0 2px var(--vm-ring)}
+.vm-badge svg{width:11px;height:11px}
+.vm[data-motion="nosignal"] .vm-badge{display:grid}
+.vm-lbl{position:absolute;left:50%;top:100%;transform:translate(-50%,1px);padding:1px 6px;border-radius:var(--r-xs);background:var(--vm-lbl);color:var(--vm-lbl-ink);border:1px solid var(--vm-lbl-line);
+  font:700 var(--fs-caption)/1.35 var(--font,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif);letter-spacing:.01em;white-space:nowrap;box-shadow:0 1px 3px rgba(15,25,45,.18);pointer-events:none}
 .vm.no-lbl .vm-lbl{display:none}
 .maplibregl-marker:has(.is-sel),.maplibregl-marker.vm.is-sel{z-index:3}
-.vm.is-sel .vm-pin{transform:scale(1.18);box-shadow:0 0 0 4px rgba(242,111,34,.6),var(--shadow-3,0 10px 30px rgba(15,25,45,.24))}
+.vm.is-sel .vm-pin{transform:scale(1.18);filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 2px 6px rgba(15,25,45,.4))}
+.vm.is-sel .vm-body{stroke:#F26F22;stroke-width:3}
 .vm.vm-upd .vm-pin{animation:vmUpd .8s ease-out}
 .vm:focus-visible{outline:none}
-.vm:focus-visible .vm-pin{box-shadow:0 0 0 4px var(--orange,#F26F22)}
-@keyframes vmUpd{from{box-shadow:0 0 0 0 rgba(53,79,163,.6),var(--shadow-2,0 2px 8px rgba(15,25,45,.22))}to{box-shadow:0 0 0 16px rgba(53,79,163,0),var(--shadow-2,0 2px 8px rgba(15,25,45,.22))}}
-@keyframes vmLive{0%,100%{opacity:1}50%{opacity:.45}}
+.vm:focus-visible .vm-body{stroke:var(--orange,#F26F22);stroke-width:3.2}
+@keyframes vmUpd{0%{transform:scale(1)}35%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes vmHalo{0%{transform:scale(1);opacity:.4}100%{transform:scale(1.9);opacity:0}}
+/* Versión estática (mapas Leaflet): centrado en el punto */
+.vm-static{position:absolute;left:0;top:0;transform:translate(-50%,-50%);cursor:default}
+@media (prefers-reduced-motion:reduce){.vm-pin::before{animation:none!important}}
 
 /* Grupo de unidades cercanas (al alejar con muchas unidades) */
 .vm-cl{display:grid;place-items:center;width:46px;height:46px;padding:0;border:3px solid var(--vm-ring);border-radius:50%;background:#233878;color:var(--on-color);cursor:pointer;

@@ -1,6 +1,6 @@
 """Centro de Monitoreo GPS y Portal de rastreo para clientes, de punta a punta, con el Worker real corriendo en Node
 (tests/worker_local.mjs: IOPGPS simulado y KV en memoria) y mapas MapLibre. Los mosaicos del mapa se simulan.
-Monitor: indicadores, marcadores por tipo de remolque, filtros, buscador, detalle, centrar, toda la flota, movimiento en
+Monitor: indicadores, marcadores del color del estado de Logística, filtros, buscador, detalle, centrar, toda la flota, movimiento en
 vivo sin recargar, sin señal, estado de Logística independiente del GPS, panel inferior en iPhone y tarjeta en computadora.
 Portal: compartir, abrir el enlace, sin velocidad ni operador, actualización, revocar, cada cambio de estado de la app en el
 portal (Cargando, En ruta vacío, Descargando…; se comparte en cualquier estado) y fin del enlace al cerrar la operación.
@@ -92,10 +92,10 @@ try:
     ok(kp=={'monitored':'6','operating':'3','moving':'2','stopped':'2','nosignal':'2'},'indicadores (en operación = misma regla que Inicio): '+json.dumps(kp))
     ok('LOGÍSTICA' in pg.locator('.mon-kpis').inner_text().upper() and 'GPS' in pg.locator('.mon-kpis').inner_text(),'indicadores separados: Logística y GPS')
     nm=pg.locator('.mon .vm').count(); ok(nm==5,f'marcadores solo de unidades con coordenadas (5 de 6; el equipo sin posición no se inventa): {nm}')
-    mk=pg.evaluate("()=>Object.fromEntries([...document.querySelectorAll('.mon .vm')].map(e=>[e.querySelector('.vm-lbl').textContent,{m:e.dataset.motion,t:e.dataset.tone,ic:e.querySelector('.vm-ic').innerHTML.length}]))")
-    ok(mk['U12']['m']=='moving' and mk['U05']['m']=='stopped' and mk['U08']['m']=='nosignal' and mk['U12']['t']=='blue' and mk['U05']['t']=='amber','marcadores: color = estado de Logística, insignia = GPS: '+json.dumps({k:[v['m'],v['t']] for k,v in mk.items()}))
-    icons=pg.evaluate("()=>{const g=(l)=>[...document.querySelectorAll('.mon .vm')].find(e=>e.querySelector('.vm-lbl').textContent===l).querySelector('.vm-ic').innerHTML; return [g('U12'),g('U05'),g('U21')]}")
-    ok(len(set(icons))==3,'figura distinta para chasis portacontenedor, jaula y tolva')
+    mk=pg.evaluate("()=>Object.fromEntries([...document.querySelectorAll('.mon .vm')].map(e=>[e.querySelector('.vm-lbl').textContent,{m:e.dataset.motion,t:e.dataset.tone,fill:getComputedStyle(e.querySelector('.vm-body')).fill,dir:getComputedStyle(e.querySelector('.vm-dir')).opacity,badge:getComputedStyle(e.querySelector('.vm-badge')).display,truck:!!e.querySelector('.vm-truck')}]))")
+    ok(mk['U12']['m']=='moving' and mk['U05']['m']=='stopped' and mk['U08']['m']=='nosignal' and mk['U12']['t']=='blue' and mk['U05']['t']=='amber' and mk['U21']['t']=='teal','marcadores: color = estado de Logística (En ruta a destino azul, Descargando ámbar, En ruta vacío verde azulado): '+json.dumps({k:[v['m'],v['t']] for k,v in mk.items()}))
+    ok(len({mk[k]['fill'] for k in ['U12','U05','U21']})==3 and all(v['truck'] for v in mk.values()),'icono sobrio: la misma silueta de tractocamión en blanco y el círculo del color de cada estado: '+json.dumps({k:v['fill'] for k,v in mk.items()}))
+    ok(mk['U12']['dir']=='1' and mk['U05']['dir']=='0' and mk['U08']['badge']=='grid' and mk['U12']['badge']=='none','en movimiento: flecha hacia el rumbo; detenida: sin flecha; sin señal: insignia y gris')
     rows=pg.locator('.mon-row').all_inner_texts(); ok(len(rows)==6 and 'U12' in rows[0],'lista de unidades (en operación primero)')
     r12=rows[0].replace('\n',' ')
     ok(all(x in r12 for x in ['En ruta a destino','En movimiento','78 km/h',ids['oper'].split()[0],'Puerto','Chasis','Manzanillo','Guadalajara','MSCU1234567','GPS hace']),'fila: estado, movimiento, operador, división, remolque, ruta, referencia y última actualización: '+r12)

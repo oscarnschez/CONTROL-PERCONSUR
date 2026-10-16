@@ -13,6 +13,7 @@ import { APP_VERSION, APP_BUILD } from '../../config/reference.js';
 import { copyrightText, LEGAL_LINKS, appBadge } from '../../config/legal.js';
 import { esc, fmtSize } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
+import { soundsOn, setSoundsOn, preload, play } from '../../services/sounds.js';
 import { openSheet, actionSheet, busy } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { currentSession, logout } from '../../auth/gate.js';
@@ -29,6 +30,7 @@ export async function settingsScreen() {
     <header class="page-top"><h1 class="title">Ajustes</h1></header>
     <section class="grp"><div class="grp-h"><h3>Apariencia</h3></div><div class="grp-b">
       <div class="seg wide">${[['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([v, l]) => `<button type="button" class="seg-b${th === v ? ' on' : ''}" data-theme-v="${v}">${l}</button>`).join('')}</div>
+      <label class="sw-row snd-row"><span class="sw-tx">Sonidos<small>Al abrir la app, al confirmar una acción y al publicar o recibir la información.</small></span><input type="checkbox" switch class="sw" data-sound${soundsOn() ? ' checked' : ''}></label>
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Empresa</h3></div><div class="grp-b list-actions">
       ${PUERTO_COMPANIES.map((k) => { const c = getCompany(k); return `<a class="row-btn" href="#/ajustes/empresa/${k}"><span class="co-logo sm ${c.mark ? 'mark' : 'wide'}"><img src="${esc(c.logo)}" alt=""></span><span>${esc(c.legal)}</span><small>Serie ${esc(c.folioSerie)}</small>${icon.chev}</a>`; }).join('')}
@@ -59,6 +61,7 @@ export async function settingsScreen() {
     <footer class="about">${appBadge()}<img src="./assets/brand/perconsur-mark.png" alt=""><b class="wordmark sm">PERCONSUR</b><span>Versión ${APP_VERSION}</span><small>Compilación ${APP_BUILD}</small><small class="legal-copy">${copyrightText()}</small></footer>
   </div>`);
   const root = s.el;
+  root.querySelector('[data-sound]').addEventListener('change', (e) => { setSoundsOn(e.target.checked); if (e.target.checked) { preload(); play('confirm'); } });
   on(root, 'click', '[data-theme-v]', async (e, b) => { await setTheme(b.dataset.themeV); root.querySelectorAll('[data-theme-v]').forEach((x) => x.classList.toggle('on', x === b)); });
   on(root, 'click', '[data-a]', async (e, b) => {
     const a = b.dataset.a;

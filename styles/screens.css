@@ -256,17 +256,17 @@ html.kb-open .actionbar{display:none}
 
 /* ===== Transición de marca al iniciar sesión (ui/components/brandIntro.js) =====
    Entrada: el logotipo se revela en diagonal (máscara que sigue el trazo naranja), luego el nombre, la banda corrugada y
-   «Bienvenido». Salida: el fondo se desvanece sobre el panel y el logotipo viaja a su lugar en el encabezado. */
+   «Bienvenido», al compás del sonido de entrada (assets/sounds/intro.mp3, ver brandIntro.js). Salida: el fondo se desvanece sobre el panel y el logotipo viaja a su lugar en el encabezado. */
 .brand-intro{position:fixed;inset:0;z-index:var(--z-intro);display:grid;place-items:center;overflow:hidden}
 .bi-bg{position:absolute;inset:0;background:var(--canvas);transition:opacity .44s ease .06s}
 .bi-in{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px;text-align:center}
 .bi-logo{width:96px;height:96px;transform-origin:0 0;transition:transform .52s var(--ease),opacity .4s ease}
-.bi-mark{display:block;width:100%;height:100%;object-fit:contain;animation:biMark .62s var(--ease) both;
+.bi-mark{display:block;width:100%;height:100%;object-fit:contain;animation:biMark .7s var(--ease) both;
   -webkit-mask-image:linear-gradient(135deg,#000 45%,transparent 55%);mask-image:linear-gradient(135deg,#000 45%,transparent 55%);
   -webkit-mask-size:300% 300%;mask-size:300% 300%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:0 0;mask-position:0 0}
-.bi-word{font-size:36px;animation:biWord .5s var(--ease) .24s both}
-.bi-band{width:168px;transform-origin:left center;animation:biBand .46s var(--ease) .5s both}
-.bi-msg{margin:4px 0 0;font-size:var(--fs-subhead);color:var(--ink-2);animation:biFade .4s ease .78s both}
+.bi-word{font-size:36px;animation:biWord .5s var(--ease) .62s both}
+.bi-band{width:168px;transform-origin:left center;animation:biBand .46s var(--ease) 1s both}
+.bi-msg{margin:4px 0 0;font-size:var(--fs-subhead);color:var(--ink-2);animation:biFade .4s ease 1.35s both}
 @keyframes biMark{from{opacity:0;transform:translate(-8px,8px) scale(.94);-webkit-mask-position:100% 100%;mask-position:100% 100%}30%{opacity:1}to{opacity:1;transform:none;-webkit-mask-position:0 0;mask-position:0 0}}
 @keyframes biWord{from{opacity:0;transform:translateY(8px);letter-spacing:.16em}to{opacity:1;transform:none;letter-spacing:.02em}}
 @keyframes biBand{from{transform:scaleX(0)}to{transform:none}}

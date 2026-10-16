@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'f3c0019188';
+const VERSION = 'd30a24509b';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -99,6 +99,7 @@ const PRECACHE = [
   "./src/services/pwa.js",
   "./src/services/settings.js",
   "./src/services/share.js",
+  "./src/services/sounds.js",
   "./src/services/statementPdf.js",
   "./src/services/sync.js",
   "./src/services/tariffPdf.js",
@@ -196,6 +197,9 @@ const PRECACHE = [
   "./assets/brand/oasc-logo.png",
   "./assets/brand/osc-logo.png",
   "./assets/brand/perconsur-mark.png",
+  "./assets/sounds/confirmacion.mp3",
+  "./assets/sounds/intro.mp3",
+  "./assets/sounds/nube.mp3",
   "./assets/geo/mx-estados.json",
   "./vendor/bwip-js-min.js",
   "./vendor/fonts/archivo-latin-ext.woff2",

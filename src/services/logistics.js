@@ -2,7 +2,7 @@
  * Logística — almacenamiento (store logisticsOperations).
  * No crea unidades, operadores ni remolques: todo se relaciona con los catálogos existentes por ID persistente.
  * Registro:
- *   { id, vehicleId, operatorId, trailerId, division, status, origin, destination, reference, deliveryPlace,
+ *   { id, vehicleId, operatorId, trailerId, division, status, origin, destination, reference, deliveryPlace, containerType (ISO, opcional),
  *     tripId, documentId, referenceSource, startedAt, closedAt, lastStatus, closeReason,
  *     statusLog[{ status, at, by }], snap{ unit, placas, operator, trailer, trailerType },
  *     createdAt, createdBy, updatedAt, updatedBy, revisions[] }
@@ -113,7 +113,7 @@ export async function saveOperation(rec, { by = '' } = {}) {
     if (prev.status !== out.status) out.statusLog = [...(prev.statusLog || []), { status: out.status, at: now, by: who }].slice(-100);
   } else {
     out = {
-      tripId: null, documentId: null, origin: '', destination: '', reference: '', deliveryPlace: '', operatorId: null, trailerId: null,
+      tripId: null, documentId: null, origin: '', destination: '', reference: '', deliveryPlace: '', containerType: '', operatorId: null, trailerId: null,
       ...rec, id: db.uid('lg_'), startedAt: now, closedAt: null, statusLog: [{ status: rec.status, at: now, by: who }],
       createdAt: now, createdBy: who, updatedAt: now, updatedBy: who, revisions: [],
     };

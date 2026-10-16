@@ -31,7 +31,10 @@ try:
     # A: unidad 1, operador 1, chasis T0
     pg.locator('[data-new]').click(); pg.wait_for_selector('.lg-form')
     pickfirst(pg,'unit',idx=0); pickfirst(pg,'operator',idx=0); pickfirst(pg,'trailer',T[0])
-    pg.fill('.lg-form [name=origin]','Manzanillo'); pg.fill('.lg-form [name=destination]','Guadalajara'); pg.fill('.lg-form [name=deliveryPlace]','CEDIS Guadalajara'); pg.fill('.lg-form [name=reference]','MSCU1234567'); submit(pg)
+    pg.fill('.lg-form [name=origin]','Manzanillo'); pg.fill('.lg-form [name=destination]','Guadalajara'); pg.fill('.lg-form [name=deliveryPlace]','CEDIS Guadalajara'); pg.fill('.lg-form [name=reference]','MSCU1234567')
+    ok(pg.locator('.lg-form [name=containerType] option').count()==15 and pg.input_value('.lg-form [name=containerType]')=='','campo opcional «Tipo de contenedor» con los tipos ISO (vacío = sin indicar)')
+    pg.select_option('.lg-form [name=containerType]','45G1'); submit(pg)
+    ok(pg.evaluate("async()=>{const l=await import('./src/services/logistics.js'); return l.all().find(o=>o.reference==='MSCU1234567').containerType}")=='45G1','tipo de contenedor guardado en la operación')
     # B: unidad 2, mismo operador, mismo remolque → advertencias
     pg.locator('[data-new]').click(); pg.wait_for_selector('.lg-form')
     pickfirst(pg,'unit',idx=1); pickfirst(pg,'operator',idx=0)

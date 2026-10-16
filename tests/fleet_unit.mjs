@@ -36,7 +36,10 @@ ok(['loading', 'to_destination', 'unloading', 'empty_transit', 'empty', 'inactiv
 const op = { id: 'lg_1', vehicleId: 'v1', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', deliveryPlace: 'CEDIS', operatorId: 'o1' };
 ok(shareBlock(op, '865190071363660') === '' && /operación activa/.test(shareBlock({ ...op, closedAt: now }, '1')) && shareBlock({ ...op, status: 'empty' }, '1') === '' && shareBlock({ ...op, status: 'loading' }, '1') === '' && /GPS vinculado/.test(shareBlock(op, '')), 'motivos para no compartir (sin operación o sin GPS; cualquier estado se puede compartir)');
 const pay = linkPayload(op, { label: 'U12', trailerType: 'chasis', operator: 'Daniel Rivera', placas: '60-BN-4J' }, '865190071363660', { loc: { lat: 20.66, lng: -103.35, precision: 'city' } });
-ok(pay.opId === 'lg_1' && pay.place === 'CEDIS' && pay.dest.approx === true && pay.operator === 'Daniel Rivera' && !JSON.stringify(pay).includes('Antonio') && !JSON.stringify(pay).includes('60-BN-4J'), 'al compartir: operador solo con nombre y apellido, sin placas; destino aproximado marcado');
+ok(pay.opId === 'lg_1' && pay.place === 'CEDIS' && pay.dest.approx === true && pay.operator === 'Daniel Rivera' && !JSON.stringify(pay).includes('Antonio') && pay.plates === '60-BN-4J', 'al compartir: operador solo con nombre y apellido, placas de la unidad; destino aproximado marcado');
+const payC = linkPayload({ ...op, reference: 'mscu-123456-7 / TGHU7654321 / ABCU2222222', containerType: '45G1' }, { label: 'U12' }, '1', null);
+ok(payC.container === 'MSCU1234567 / TGHU7654321' && payC.containerType === '45G1' && pay.container === '' && pay.containerType === '', 'al compartir: contenedores de la referencia (máx. 2, sin guiones) y su tipo ISO');
+ok(linkPayload({ ...op, reference: 'CAMPO-881', containerType: 'XX' }, { label: 'U5' }, '1', null).container === '' && linkPayload({ ...op, containerType: 'XX' }, { label: 'U5' }, '1', null).containerType === '', 'referencia sin número de contenedor y tipo desconocido: no se envían');
 ok(shortName('Daniel Antonio Rivera Bautista') === 'Daniel Rivera' && shortName('José Castañeda Villalobos') === 'José Castañeda' && shortName('Juan García') === 'Juan García' && shortName('  Pedro  ') === 'Pedro' && shortName('') === '', 'nombre del operador para el cliente: un nombre y el apellido paterno');
 ok(shortName('Juan de la Cruz Pérez') === 'Juan de la Cruz' && shortName('Luis del Río') === 'Luis del Río' && shortName('María Fernanda de León Ortiz') === 'María de León', 'apellidos con partículas (de, del, de la)');
 ok(destPoint(null) === null && destPoint({ loc: { lat: 1, lng: 2, precision: 'manual' } }).approx === false, 'destino solo si ya está ubicado');
@@ -52,7 +55,11 @@ const accT = reconcile([L({ opId: 'a', operator: 'Daniel Rivera', trailer: '788-
   (id) => ({ status: 'to_destination', op: 'Daniel Antonio Rivera Bautista', tr: { a: '788-wr-4', b: 'JX-55-123', c: 'JX-55-123' }[id] }), () => null, (op) => op.op, (op) => ({ placas: op.tr, type: 'chasis' }));
 const byT = Object.fromEntries(accT.map((a) => [a.link.opId, a]));
 ok(!byT.a && byT.b.body.trailer === 'JX-55-123' && byT.b.body.trailerType === 'chasis' && !byT.c, 'cambio de remolque: el portal recibe las placas del nuevo remolque (Worker anterior sin placas: no se reenvía)');
-ok(linkPayload(op, { label: 'U12', trailerType: 'chasis', trailer: '788-WR-4', operator: 'Daniel Rivera', placas: '60-BN-4J' }, '1', null).trailer === '788-WR-4', 'al compartir: placas del remolque asignado (no las de la unidad)');
+ok(linkPayload(op, { label: 'U12', trailerType: 'chasis', trailer: '788-WR-4', operator: 'Daniel Rivera', placas: '60-BN-4J' }, '1', null).trailer === '788-WR-4', 'al compartir: placas del remolque asignado');
+const accC = reconcile([L({ opId: 'a', container: 'MSCU1234567', containerType: '45G1', plates: '60-BN-4J' }), L({ opId: 'b', container: '', containerType: '', plates: '' }), L({ opId: 'c' })],
+  (id) => ({ status: 'to_destination', reference: id === 'a' ? 'MSCU1234567' : 'TGHU7654321', containerType: id === 'a' ? '45G1' : '42R1' }), () => null, null, null, (o) => (o.reference === 'MSCU1234567' ? '60-bn-4j' : '11-AA-2B'));
+const byC = Object.fromEntries(accC.map((a) => [a.link.opId, a]));
+ok(!byC.a && byC.b.body.container === 'TGHU7654321' && byC.b.body.containerType === '42R1' && byC.b.body.plates === '11-AA-2B' && !byC.c, 'cambio de contenedor, tipo o placas de la unidad: el portal los recibe (Worker anterior sin esos datos: no se reenvían)');
 
 /* Datos de la flota completados con la consulta por unidad (misma regla en la app y en el Worker) */
 const fl = { lat: 19.01007, lng: -103.832489, gpsTime: null, signalTime: null, speed: 0, address: null };

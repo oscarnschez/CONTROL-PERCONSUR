@@ -177,7 +177,7 @@ try {
   /* ===== Rastreo para clientes ===== */
   const kvT = memKV(), envT = { ...env, TRACKING: kvT };
   const WORKER_ORIGIN = 'https://perconsur-gps.ejemplo.workers.dev';
-  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', operator: 'Daniel Rivera', trailerType: 'chasis', trailer: '788-wr-4', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
+  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', plates: '60-bn-4j', container: 'MSCU1234567 / nota', containerType: '45G1', operator: 'Daniel Rivera', trailerType: 'chasis', trailer: '788-wr-4', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
   __reset();
   r = await call('/v1/enlaces', { method: 'POST', body: op1 });
   ok(r.status === 503 && /KV «TRACKING»/.test(r.body.error), 'enlaces sin espacio KV: aviso claro (503)');
@@ -204,6 +204,8 @@ try {
   ok(r.status === 200 && r.body.state === 'active' && r.body.trip.origin === 'Manzanillo' && r.body.trip.destination === 'Guadalajara' && r.body.trip.statusText === 'En camino al destino' && r.body.position && r.body.position.lat === 19.01007, 'portal: origen, destino, estado y ubicación de la unidad');
   ok(r.body.trip.operator === 'Daniel Rivera', 'portal: nombre y apellido del operador');
   ok(r.body.trip.trailer === '788-WR-4' && r.body.trip.trailerType === 'chasis', 'portal: placas del remolque asignado (en mayúsculas) y su tipo');
+  ok(r.body.trip.plates === '60-BN-4J' && r.body.trip.container === 'MSCU1234567' && r.body.trip.containerType === '45G1', 'portal: placas de la unidad, número de contenedor (solo números ISO) y tipo de contenedor');
+  ok(L1.plates === '60-BN-4J' && L1.container === 'MSCU1234567' && L1.containerType === '45G1' && kvT.m.get('lnk:' + L1.id).meta.container === 'MSCU1234567', 'enlace: la app recibe placas y contenedor (para detectar cambios)');
   ok(!/speed|imei|865190071363660|opId|placas|Antonio|Bautista/i.test(pubTxt) && r.body.trip.unit === 'U12', 'portal: número de unidad (U12) para el marcador; sin velocidad, IMEI ni datos internos');
   ok(r.body.position.live === false && r.body.destination && r.body.destination.lat === 20.6597, 'portal: posición antigua marcada como no actual; destino en el mapa');
   ok(!('865190071300000' in r.body) && !pubTxt.includes('20.66'), 'portal: solo la unidad del enlace (no otras unidades)');
@@ -228,6 +230,9 @@ try {
   r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { trailer: 'JX-55-123', trailerType: 'chasis' } });
   const pvT = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
   ok(r.body.link.trailer === 'JX-55-123' && pvT.body.trip.trailer === 'JX-55-123', 'cambio de remolque: el portal muestra las placas del nuevo remolque');
+  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { container: 'tghu7654321 msku1111111 abcu2222222', containerType: '<b>' } });
+  const pvC = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+  ok(pvC.body.trip.container === 'TGHU7654321 / MSKU1111111' && pvC.body.trip.containerType === '' && pvC.body.trip.plates === '60-BN-4J', 'cambio de contenedor: máximo 2 números; un tipo que no es código ISO se descarta');
   r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, status: 'empty' } });
   ok(r.status === 200 && r.body.reused && r.body.link.id === L1.id && r.body.link.status === 'empty', 'compartir con la unidad Vacía: se permite (reutiliza el enlace)');
   r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'estado-viejo' } });

@@ -268,7 +268,7 @@ export async function gpsMonitorScreen() {
           ${link ? `<a class="btn-secondary" href="${esc(tracking.linkUrl(link))}" target="_blank" rel="noopener" data-open>${icon.eye}<span>Abrir enlace público</span></a>
           <button type="button" class="btn-ghost danger" data-revoke>${icon.linkOff}<span>Revocar enlace activo</span></button>` : ''}
         </div>
-        <p class="grp-note">El cliente ve solo el número de unidad, la ubicación, el origen, el destino, el estado del viaje, las placas del remolque y el operador por nombre y apellido${r.operator ? ` (${esc(shortName(r.operator))})` : ''}; nunca la velocidad. Cada cambio de estado se ve en el enlace al momento. Deja de dar la ubicación al cerrar la operación o al revocarlo.</p>
+        <p class="grp-note">El cliente ve solo el número y las placas de la unidad, la ubicación, el origen, el destino, el estado del viaje, las placas del remolque, el contenedor (número y tipo) y el operador por nombre y apellido${r.operator ? ` (${esc(shortName(r.operator))})` : ''}; nunca la velocidad. Cada cambio de estado se ve en el enlace al momento. Deja de dar la ubicación al cerrar la operación o al revocarlo.</p>
       </div></section>
       <section class="grp"><div class="grp-h"><h3>Acciones</h3></div><div class="mon-acts2">
         <a class="btn-secondary" href="#/operacion/logistica/u/${encodeURIComponent(r.vehicleId)}">${icon.truck}<span>Ver detalle logístico</span></a>
@@ -411,9 +411,9 @@ function openLinkSheet(r, link) {
     <p class="sheet-lead">${esc(r.label)}${routeTxt(r) ? ' · ' + esc(routeTxt(r)) : ''}</p>
     <div class="trk-url"><span class="mono" data-url>${esc(url)}</span></div>
     <ul class="trk-what">
-      <li>${icon.eye}<span>El cliente ve el número de unidad, la ubicación actual, el origen, el destino, el estado del viaje y las placas del remolque.</span></li>
+      <li>${icon.eye}<span>El cliente ve el número y las placas de la unidad, la ubicación actual, el origen, el destino, el estado del viaje, las placas del remolque y el contenedor (número y tipo).</span></li>
       <li>${icon.person}<span>${r.operator ? `Operador: <b>${esc(shortName(r.operator))}</b> (solo nombre y apellido).` : 'Sin operador asignado.'}</span></li>
-      <li>${icon.linkOff}<span>No ve la velocidad, las placas de la unidad ni otras unidades.</span></li>
+      <li>${icon.linkOff}<span>No ve la velocidad ni otras unidades.</span></li>
       <li>${icon.refresh}<span>Cada cambio de estado (Cargando, En ruta a destino, Descargando, En ruta vacío, Vacío…) se ve en el enlace al momento.</span></li>
       <li>${icon.clock}<span>Deja de mostrar la ubicación al cerrar la operación, si lo revocas o a las ${maxH} h.</span></li>
     </ul>

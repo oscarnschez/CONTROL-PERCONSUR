@@ -15,7 +15,7 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 .pt-band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:22%;background:repeating-linear-gradient(90deg,var(--brand-orange) 0 9px,var(--brand-orange-d) 9px 12px,var(--brand-orange-m) 12px 14px)}
 .pt-loading{margin:24px 4px;color:var(--ink-2)}
 
-/* Estado del envío */
+/* Estado del transporte */
 .pt-card{--pt-c:#354FA3;display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-1)}
 .pt-card.t-amber{--pt-c:#D48A0C}
 .pt-card.t-violet{--pt-c:#7C5CC4}
@@ -67,6 +67,20 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 .pt-op .ic{flex:none;width:34px;height:34px;padding:7px;border-radius:50%;background:var(--blue-t);color:var(--tint)}
 .pt-tt .ic{flex:none;width:34px;height:34px;padding:6px;border-radius:var(--r-sm);background:var(--fill)}
 
+/* Unidad y carga: placas de la unidad, placas del remolque y contenedor */
+.pt-load{display:flex;flex-direction:column;gap:2px;padding:14px 16px 8px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-1)}
+.pt-load[hidden]{display:none}
+.pt-load h2{margin:0 0 4px}
+.pt-li{display:flex;align-items:center;gap:12px;padding:9px 0}
+.pt-li+.pt-li{border-top:1px solid var(--line)}
+.pt-li-ic{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:var(--r-sm);background:var(--fill);color:var(--ink-2)}
+.pt-li-ic .ic{width:24px;height:24px}
+.pt-li-tx{display:flex;flex-direction:column;min-width:0}
+.pt-li-tx small{font-size:var(--fs-caption);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pt-li-tx b{font-size:var(--fs-body);font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.pt-li-tx b.mono{font-family:var(--f-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-weight:700;letter-spacing:.03em}
+.pt-li-tx>span{font-size:var(--fs-footnote);color:var(--ink-2)}
+
 .pt-foot{display:flex;flex-direction:column;gap:6px;padding:4px 4px 0;font-size:var(--fs-footnote);color:var(--muted)}
 .pt-foot p{display:flex;gap:6px;margin:0}
 .pt-foot .ic{width:16px;height:16px;margin-top:1px}
@@ -80,12 +94,13 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
    la ruta y el operador van en una columna angosta a la derecha */
 @media (min-width:860px){
   .pt{max-width:none;margin:0;min-height:100vh;min-height:100dvh;padding:calc(var(--sat) + 10px) calc(var(--sar) + 16px) calc(var(--sab) + 12px) calc(var(--sal) + 16px);
-    grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto auto auto auto 1fr;grid-template-areas:"head head" "band band" "map card" "map route" "map foot";align-items:start;gap:10px 14px}
-  .pt-head{grid-area:head}.pt-band{grid-area:band;margin-top:-2px}.pt-card{grid-area:card}.pt-route{grid-area:route}.pt-mapwrap{grid-area:map;align-self:stretch}.pt-foot{grid-area:foot}
+    grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto auto auto auto auto 1fr;grid-template-areas:"head head" "band band" "map card" "map route" "map load" "map foot";align-items:start;gap:10px 14px}
+  .pt-head{grid-area:head}.pt-band{grid-area:band;margin-top:-2px}.pt-card{grid-area:card}.pt-route{grid-area:route}.pt-load{grid-area:load}.pt-mapwrap{grid-area:map;align-self:stretch}.pt-foot{grid-area:foot}
   .pt-mark{width:32px;height:32px}.pt-word{font-size:23px}
   .pt-map{height:calc(100vh - 92px);height:calc(100dvh - 92px - var(--sat) - var(--sab));min-height:520px}
   .pt-card,.pt-route{padding:14px}
-  .pt.nomap{max-width:700px;margin:0 auto;min-height:0;grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"head" "band" "card" "route" "foot"}
+  .pt-load{padding:12px 14px 6px}.pt-li{padding:7px 0}
+  .pt.nomap{max-width:700px;margin:0 auto;min-height:0;grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"head" "band" "card" "route" "load" "foot"}
 }
 @media (min-width:1800px){.pt{grid-template-columns:minmax(0,1fr) 380px}}
 @media (prefers-reduced-motion:reduce){.pt-age.live i{animation:none}}

@@ -16,6 +16,7 @@ ok(Object.values(files).every((f) => sw.includes(`./assets/sounds/${f}`)), 'los 
 ok(/play\('intro'\)/.test(rd('src/ui/components/brandIntro.js')) && /HOLD = 1950/.test(rd('src/ui/components/brandIntro.js')), 'entrada: suena con la transición de marca, que sale cuando el sonido empieza a apagarse (1.95 s)');
 ok(/if \(type === 'ok'\) play\('confirm'\)/.test(rd('src/ui/components/toast.js')), 'confirmación: con el aviso verde de una acción confirmada');
 const sync = rd('src/services/sync.js');
-ok((sync.match(/play\('cloud'\)/g) || []).length === 2, 'nube: al terminar de publicar y al recibir la información');
+ok((sync.match(/play\('cloud'\)/g) || []).length === 4 && /if \(sent\) play\('cloud'\)/.test(sync),
+  'nube: al terminar de publicar y al recibir la información (también en el teléfono de Taller: al enviar cambios y al recibir)');
 ok(/unlock\(\)/.test(rd('src/auth/gate.js')) && /preload\(\)/.test(rd('src/auth/gate.js')), 'el toque de «Entrar» habilita el audio y los sonidos se descargan al abrir');
 ok(/document\.hidden/.test(snd) && /'pcs-sound'/.test(snd) && /setTimeout\(r, 300\)/.test(snd), 'no suena en segundo plano ni apagado en Ajustes, y nunca se queda esperando el permiso del navegador');

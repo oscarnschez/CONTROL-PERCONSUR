@@ -40,6 +40,7 @@ import * as mt from '../../services/maintenance.js';
 import * as al from '../../services/alerts.js';
 import { isReadOnly } from '../../services/access.js';
 import { dwellText } from '../../domain/alerts/alerts.js';
+import { TIPOS, tipoDesc } from '../../config/reference.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -247,6 +248,7 @@ export async function logisticsUnitScreen({ id }) {
           <div><dt>Destino</dt><dd>${o2(op.destination)}</dd></div>
           <div><dt>Lugar de entrega</dt><dd>${o2(op.deliveryPlace)}</dd></div>
           <div><dt>Referencia</dt><dd>${op.reference ? `<span class="mono">${esc(op.reference)}</span>${op.referenceSource ? `<small>Tomada ${op.referenceSource === 'trip' ? 'del viaje relacionado' : 'del documento relacionado'}</small>` : ''}` : '<i>—</i>'}</dd></div>
+          ${op.containerType ? `<div><dt>Tipo de contenedor</dt><dd>${esc(tipoDesc(op.containerType) || op.containerType)}<small class="mono">${esc(op.containerType)}</small></dd></div>` : ''}
           ${trip ? `<div><dt>Viaje</dt><dd>${esc(fmtDate(trip.date))} · ${esc(routeTxt(trip))}</dd></div>` : ''}
           ${xref.docId ? `<div><dt>Documento</dt><dd><a href="#/doc/${esc(xref.docId)}${xref.trip && xref.extra ? `?expediente=${esc(xref.trip.id)}` : ''}">Ver documento relacionado</a>${xref.extra ? `<small>Expediente consolidado: documento + ${xref.extra} adicional${xref.extra === 1 ? '' : 'es'}</small>` : ''}</dd></div>`
     : xref.trip && xref.extra ? `<div><dt>Expediente</dt><dd><button type="button" class="lg-linkbtn" data-xp>Ver expediente del viaje</button><small>${xref.extra} documento${xref.extra === 1 ? '' : 's'} adicional${xref.extra === 1 ? '' : 'es'}; sin documento principal</small></dd></div>` : ''}
@@ -345,7 +347,7 @@ function openHistoryDetail(id) {
       ${row('Operador', t(v.operator))}${row('División', t(divisionLabel(op.division)))}
       ${row('Remolque', v.trailer ? `${esc(v.trailer)}` : '<i>—</i>')}${row('Tipo', v.trailer ? trailerType(v.trailerType, { full: true }) : '<i>—</i>')}
       ${row('Último estado', statusChip(op.lastStatus || op.status, 'plain'))}
-      ${row('Origen', t(op.origin))}${row('Destino', t(op.destination))}${row('Lugar de entrega', t(op.deliveryPlace))}${row('Referencia', op.reference ? `<span class="mono">${esc(op.reference)}</span>` : '<i>—</i>')}
+      ${row('Origen', t(op.origin))}${row('Destino', t(op.destination))}${row('Lugar de entrega', t(op.deliveryPlace))}${row('Referencia', op.reference ? `<span class="mono">${esc(op.reference)}</span>` : '<i>—</i>')}${op.containerType ? row('Tipo de contenedor', esc(tipoDesc(op.containerType) || op.containerType)) : ''}
       ${row('Inicio', esc(dt(op.startedAt)))}${row('Última actualización', esc(dt(op.updatedAt)))}${row('Cierre', esc(dt(op.closedAt)))}
     </dl>
     <div class="sheet-acts col"><button type="button" class="btn-secondary" data-hedit>${icon.edit}<span>Corregir datos</span></button></div>` });
@@ -381,6 +383,7 @@ export function openOperationForm({ op = null, vehicleId = null, onSaved = null 
     ${txt('destination', 'Destino', 'Ej. Guadalajara', 'Ciudad o zona.')}
     ${txt('deliveryPlace', 'Lugar de entrega', 'Ej. CEDIS Guadalajara', 'Nombre específico del sitio donde se entrega (planta, CEDIS, terminal, bodega).')}
     ${txt('reference', 'Referencia', 'Ej. MSCU1234567', 'Número de contenedor, referencia del viaje u otra referencia operativa.', 'characters')}
+    <label class="fld" data-f="containerType"><span class="fl">Tipo de contenedor</span><span class="sel-w"><select class="in" name="containerType"><option value="">Sin indicar</option>${TIPOS.map(([c, d]) => `<option value="${c}"${editing && op.containerType === c ? ' selected' : ''}>${c} · ${esc(d)}</option>`).join('')}</select><span class="sel-ic">${icon.down}</span></span><span class="fhint">Opcional. Se muestra al cliente en el enlace de rastreo junto con el número de contenedor.</span></label>
     <h3 class="lg-fh">Relacionar (opcional)</h3>
     ${pick('trip', 'Viaje de operador', '<button type="button" class="icon-btn" data-clear="trip" aria-label="Quitar viaje">' + icon.close + '</button>')}
     ${pick('doc', 'Documento generado', '<button type="button" class="icon-btn" data-clear="doc" aria-label="Quitar documento">' + icon.close + '</button>')}
@@ -496,7 +499,11 @@ export function openOperationForm({ op = null, vehicleId = null, onSaved = null 
       if (d) {
         const S = d.summary || {};
         if (!divTouched) { st.division = d.type; divTouched = true; }
-        if (d.type === 'puerto') { useReference((S.contenedores || []).join(' / '), 'document'); fill('deliveryPlace', S.destino); fill('destination', S.municipio); }
+        if (d.type === 'puerto') {
+          useReference((S.contenedores || []).join(' / '), 'document'); fill('deliveryPlace', S.destino); fill('destination', S.municipio);
+          const tp = ((d.data && d.data.conts) || []).map((c) => c.tipo).find((x) => tipoDesc(x));
+          if (tp && !form.elements.containerType.value) form.elements.containerType.value = tp;
+        }
         else { const pl = (d.data && d.data.planta) || (S.planta ? 'Planta ' + S.planta : ''); fill('deliveryPlace', pl); useReference(d.folio, 'document'); }
       }
       sync();
@@ -529,7 +536,7 @@ export function openOperationForm({ op = null, vehicleId = null, onSaved = null 
     if (!closed && isWorking(st.status) && !st.operatorId) return fail('operator', 'Elige el operador: la unidad está en operación.');
     const val = (k) => form.elements[k].value.trim().replace(/\s+/g, ' ');
     const rec = { vehicleId: st.vehicleId, operatorId: st.operatorId || null, trailerId: st.trailerId || null, division: st.division, status: closed ? op.status : st.status,
-      origin: val('origin'), destination: val('destination'), deliveryPlace: val('deliveryPlace'), reference: val('reference'), referenceSource: st.referenceSource || '', tripId: st.tripId || null, documentId: st.documentId || null };
+      origin: val('origin'), destination: val('destination'), deliveryPlace: val('deliveryPlace'), reference: val('reference'), containerType: form.elements.containerType.value || '', referenceSource: st.referenceSource || '', tripId: st.tripId || null, documentId: st.documentId || null };
     if (!closed) {
       const c = lg.conflictsFor(rec, editing ? op.id : null);
       if (c.unit) {

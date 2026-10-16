@@ -28,6 +28,8 @@ export const TIPO_OLD = {
   "20' open top": '22U1', "40' open top": '42U1', "20' flat rack": '22P1', "40' flat rack": '42P1',
 };
 export const TIPO_DEFAULT = '45G1';
+/* Descripción de un código ISO («45G1» → «40' High Cube»); '' si no está en la lista */
+export const tipoDesc = (code) => (TIPOS.find(([v]) => v === code) || [])[1] || '';
 
 /* Modo de tráfico */
 export const TRAFICOS = [['', 'Sin indicar'], ['FCL', 'FCL (contenedor completo)'], ['LCL', 'LCL (carga consolidada)']];

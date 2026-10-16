@@ -7,6 +7,8 @@
  */
 import { isStatus } from '../../config/logistics.js';
 import { isApprox } from '../gps/geo.js';
+import { containersIn } from '../empties/empties.js';
+import { tipoDesc } from '../../config/reference.js';
 
 export const isTrackable = (status) => isStatus(status);
 
@@ -39,11 +41,16 @@ export function shortName(full) {
   return `${w[0]} ${sur.join(' ')}`;
 }
 
-/* Datos que se envían al Worker al compartir: el operador solo con nombre y apellido y las placas del remolque asignado;
-   sin placas de la unidad ni velocidad */
+/* Contenedor que ve el cliente: los números válidos de la referencia (máximo 2) y el tipo ISO capturado en la operación */
+export const containerOf = (op) => containersIn(op && op.reference).slice(0, 2).join(' / ');
+export const containerTypeOf = (op) => (op && tipoDesc(op.containerType) ? op.containerType : '');
+
+/* Datos que se envían al Worker al compartir: el operador solo con nombre y apellido, las placas de la unidad y del
+   remolque asignado y el contenedor; sin velocidad */
 export function linkPayload(op, view, imei, target) {
   return {
-    opId: op.id, imei: String(imei || ''), unit: view.label || '', operator: shortName(view.operator), trailerType: view.trailerType || '', trailer: view.trailer || '', status: op.status,
+    opId: op.id, imei: String(imei || ''), unit: view.label || '', plates: view.placas || '', operator: shortName(view.operator), trailerType: view.trailerType || '', trailer: view.trailer || '', status: op.status,
+    container: containerOf(op), containerType: containerTypeOf(op),
     origin: op.origin || '', destination: op.destination || '', place: op.deliveryPlace || '', dest: destPoint(target),
   };
 }
@@ -51,10 +58,11 @@ export function linkPayload(op, view, imei, target) {
 /*
  * Caducidad automática. links: enlaces del Worker; opOf(opId) → operación | null (borrada) | undefined (no está en este
  * dispositivo: no se toca); destOf(op) → punto de destino ya ubicado o null; operatorOf(op) → nombre completo del operador;
- * trailerOf(op) → { placas, type } del remolque asignado (un cambio de remolque se refleja en el portal).
+ * trailerOf(op) → { placas, type } del remolque asignado (un cambio de remolque se refleja en el portal); platesOf(op) → placas
+ * de la unidad. El contenedor (número y tipo) se toma de la operación.
  * Devuelve [{ link, action: 'finish' | 'update', body }].
  */
-export function reconcile(links, opOf, destOf = () => null, operatorOf = null, trailerOf = null) {
+export function reconcile(links, opOf, destOf = () => null, operatorOf = null, trailerOf = null, platesOf = null) {
   const out = [];
   for (const link of links) {
     if (link.state !== 'active') continue;
@@ -67,6 +75,13 @@ export function reconcile(links, opOf, destOf = () => null, operatorOf = null, t
     if (operatorOf) { const n = shortName(operatorOf(op)); if (n !== (link.operator || '')) body.operator = n; }
     /* Remolque: solo con un Worker que ya guarda las placas (el enlace trae «trailer»), así no se reenvía en cada revisión */
     if (trailerOf && link.trailer !== undefined) { const t = trailerOf(op) || {}; if ((t.placas || '').toUpperCase() !== (link.trailer || '')) { body.trailer = t.placas || ''; body.trailerType = t.type || ''; } }
+    /* Placas de la unidad y contenedor: igual, solo con un Worker que ya los guarda (el enlace trae «container») */
+    if (link.container !== undefined) {
+      if (platesOf) { const p = String(platesOf(op) || '').toUpperCase(); if (p !== (link.plates || '')) body.plates = p; }
+      const c = containerOf(op), ct = containerTypeOf(op);
+      if (c !== (link.container || '')) body.container = c;
+      if (ct !== (link.containerType || '')) body.containerType = ct;
+    }
     if (Object.keys(body).length) out.push({ link, action: 'update', body });
   }
   return out;

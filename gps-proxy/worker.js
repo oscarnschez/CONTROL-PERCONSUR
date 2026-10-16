@@ -46,9 +46,9 @@
  *   POST /v1/avisos/suscripcion | baja | prueba   notificaciones push de un dispositivo
  *   Públicos (sin clave; solo con el enlace):
  *   GET /r/:token              página del portal de rastreo (identidad PERCONSUR; el mapa y el diseño vienen de APP_URL)
- *   GET /v1/publico/:token     datos del portal: número de unidad, origen, destino, estado y ubicación actual de ESA
- *                              unidad mientras el enlace está activo, placas del remolque y el operador solo por nombre
- *                              y apellido. Nunca velocidad, IMEI, placas de la unidad ni otras unidades.
+ *   GET /v1/publico/:token     datos del portal: número y placas de la unidad, placas del remolque, contenedor (número
+ *                              y tipo), origen, destino, estado y ubicación actual de ESA unidad mientras el enlace está
+ *                              activo, y el operador solo por nombre y apellido. Nunca velocidad, IMEI ni otras unidades.
  *
  * API de IOPGPS utilizada (documentación pública de terceros; confirmar con el proveedor):
  *   POST /api/auth  { appid, time, signature = md5(md5(secreto) + time) } → { accessToken, expiresIn }
@@ -355,9 +355,9 @@ const point = (p) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) &&
   ? { lat: Math.round(+p.lat * 1e6) / 1e6, lng: Math.round(+p.lng * 1e6) / 1e6, approx: !!p.approx } : null);
 /* active | finished | revoked | expired (vencido por tiempo) */
 const stateOf = (rec, now = Date.now()) => (rec.state === 'active' && now > rec.expiresAt ? 'expired' : rec.state);
-const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', trailer: rec.trailer || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
+const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', trailer: rec.trailer || '', plates: rec.plates || '', container: rec.container || '', containerType: rec.containerType || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
 /* Vista interna (solo con PCS_KEY) */
-const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
+const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', plates: m.plates || '', container: m.container || '', containerType: m.containerType || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
 
 class TrackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 function needKv(env) {
@@ -404,6 +404,10 @@ function applyFields(rec, b) {
   if (b.unit !== undefined) rec.unit = txt(b.unit, 40);
   if (b.trailerType !== undefined) rec.trailerType = TRAILERS.includes(b.trailerType) ? b.trailerType : '';
   if (b.trailer !== undefined) rec.trailer = txt(b.trailer, 20).toUpperCase();   /* placas del remolque asignado */
+  if (b.plates !== undefined) rec.plates = txt(b.plates, 20).toUpperCase();     /* placas de la unidad */
+  /* Contenedor: hasta 2 números ISO 6346 (4 letras + 7 dígitos) y su tipo como código ISO (p. ej. 45G1) */
+  if (b.container !== undefined) rec.container = (String(b.container || '').toUpperCase().match(/\b[A-Z]{4}\d{7}\b/g) || []).slice(0, 2).join(' / ');
+  if (b.containerType !== undefined) rec.containerType = /^[0-9A-Z]{4}$/.test(String(b.containerType || '')) ? String(b.containerType) : '';
   if (b.origin !== undefined) rec.origin = txt(b.origin);
   if (b.destination !== undefined) rec.destination = txt(b.destination);
   if (b.place !== undefined) rec.place = txt(b.place);
@@ -433,7 +437,7 @@ async function createLink(env, b) {
     const rec = await getLink(env, l.id, true);
     if (rec && rec.state === 'active') await putLink(env, close(rec, 'finished', 'replaced', now));
   }
-  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', operator: '', trailerType: '', trailer: '', origin: '', destination: '', place: '', dest: null,
+  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', plates: '', operator: '', trailerType: '', trailer: '', container: '', containerType: '', origin: '', destination: '', place: '', dest: null,
     status: b.status, state: 'active', createdAt: now, updatedAt: now, expiresAt: now + maxHours(env) * 3600 * 1000, closedAt: null, closeReason: null }, b);
   await putLink(env, rec);
   return { rec, reused: false };
@@ -459,7 +463,7 @@ async function publicView(env, rec) {
   const now = Date.now(), st = stateOf(rec, now);
   const out = { ok: true, state: st, refreshIn: 30 };
   if (st === 'revoked' || st === 'expired') return out;
-  out.trip = { unit: rec.unit || '', origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', trailer: rec.trailer || '', operator: rec.operator || '',
+  out.trip = { unit: rec.unit || '', plates: rec.plates || '', container: rec.container || '', containerType: rec.containerType || '', origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', trailer: rec.trailer || '', operator: rec.operator || '',
     status: st === 'finished' ? 'delivered' : rec.status, statusText: st === 'finished' ? TRACK_DONE_TEXT : TRACK_STATUS_TEXT[rec.status] || TRACK_STATUS_TEXT.to_destination };
   if (st === 'finished') { out.closedAt = rec.closedAt; return out; }
   out.destination = rec.dest || null;

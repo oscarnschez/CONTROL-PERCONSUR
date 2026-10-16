@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'a44734c347';
+const VERSION = '41f012a632';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -327,9 +327,11 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const app = await caches.open(APP_CACHE);
     if (req.mode === 'navigate') {
+      /* Caché primero también para la página: abre al instante aunque los datos móviles estén lentos. La página guardada
+         es de la misma versión que el código guardado; las versiones nuevas llegan con la actualización del service worker. */
       const shell = (url.pathname.endsWith('/legal.html') && await app.match('./legal.html')) || await app.match('./index.html') || await app.match('./');
-      try { const r = await fetch(req); if (r.ok) return r; } catch (e) { /* sin conexión */ }
-      return shell || new Response('Sin conexión', { status: 503 });
+      if (shell) return shell;
+      try { return await fetch(req); } catch (e) { return new Response('Sin conexión', { status: 503 }); }
     }
     const hit = await app.match(req, { ignoreSearch: true });
     if (hit) return hit;

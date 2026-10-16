@@ -55,6 +55,7 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).
 - `python3 upgrade.py` — actualización de la base de datos v1 → v2 sin pérdida de datos.
 - `python3 offline.py` — sin conexión con el service worker activo.
+- `python3 slownet.py` — red lenta (datos móviles): con el service worker instalado la app abre desde lo guardado en el teléfono en menos de 3 s aunque el servidor tarde 8 s en responder (antes esperaba a la red).
 - `python3 fidelity.py` — compara la hoja generada por DOCGEN con la de la app (copia el `index.html` de DOCGEN 3.1 como `__orig.html` en la raíz de la app antes de correrlo).
 
 `shims.js` sustituye a las librerías del CDN **solo en pruebas** (el entorno de pruebas no tenía internet). No se carga en la app.

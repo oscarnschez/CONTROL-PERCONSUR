@@ -137,7 +137,7 @@ El dominio está en la misma cuenta de Cloudflare, así que se conecta sin cambi
 |---|---|---|
 | `https://rastreo.perconsur.app` | el Worker: portal del cliente (`/r/…`), GPS, información compartida y avisos | Worker → Settings → Domains & Routes |
 | `https://perconsur.app/MSCU1234567-k7q2x` | enlaces cortos propios (sustituyen a TinyURL) | Worker → Domains & Routes + variable `SHORT_BASE` |
-| `https://app.perconsur.app` | la app PERCONSUR (hoy en GitHub Pages) | DNS de Cloudflare + GitHub → Settings → Pages |
+| `https://control.perconsur.app` | la app PERCONSUR (hoy en GitHub Pages) | DNS de Cloudflare + GitHub → Settings → Pages |
 
 **1. Rastreo (`rastreo.perconsur.app`):** Worker → Settings → **Domains & Routes** → Add → **Custom domain** →
 `rastreo.perconsur.app` → Add. Cloudflare crea el DNS y el certificado. Después, en cada dispositivo: Ajustes → Rastreo GPS
@@ -151,25 +151,25 @@ alguien que vea el número pintado en el contenedor pueda abrir el rastreo; los 
 fallidos (20 en 15 min bloquean la conexión). Sin número de contenedor el código es de 8 caracteres al azar. La raíz
 `https://perconsur.app` lleva a www.perconsur.mx. Con `SHORT_BASE` ya no se usa TinyURL (puedes borrar `TINYURL_TOKEN`).
 
-**3. La app (`app.perconsur.app`):** el navegador guarda los datos de la app **por dirección**: en la dirección nueva
+**3. La app (`control.perconsur.app`):** el navegador guarda los datos de la app **por dirección**: en la dirección nueva
 la app empieza vacía en cada dispositivo. Hazlo en este orden:
 
 1. **Antes de cambiar nada**, en el dispositivo capturista (dirección actual): Ajustes → Información compartida →
    «Publicar ahora», y Ajustes → **Exportar respaldo** (con fotos y documentos). Guarda el archivo.
-2. Cloudflare → perconsur.app → **DNS** → Add record: tipo `CNAME`, nombre `app`, destino `oscarnschez.github.io`,
+2. Cloudflare → perconsur.app → **DNS** → Add record: tipo `CNAME`, nombre `control`, destino `oscarnschez.github.io`,
    **Proxy status: DNS only** (nube gris; GitHub necesita ver el registro para emitir el certificado).
-3. GitHub → repositorio PERCONSUR → Settings → **Pages** → Custom domain: `app.perconsur.app` → Save. Espera a que la
+3. GitHub → repositorio PERCONSUR → Settings → **Pages** → Custom domain: `control.perconsur.app` → Save. Espera a que la
    revisión de DNS quede en verde y marca **Enforce HTTPS**. Desde ese momento `oscarnschez.github.io/PERCONSUR/` redirige
-   a `https://app.perconsur.app`.
-4. **De inmediato**, en el Worker → Variables and Secrets: `ALLOWED_ORIGIN` = `https://app.perconsur.app,https://oscarnschez.github.io`
-   y `APP_URL` = `https://app.perconsur.app/` → Deploy. (El portal del cliente carga su mapa desde `APP_URL`.)
-5. En cada dispositivo abre `https://app.perconsur.app`, inicia sesión y configura Ajustes → Rastreo GPS e Información
+   a `https://control.perconsur.app`.
+4. **De inmediato**, en el Worker → Variables and Secrets: `ALLOWED_ORIGIN` = `https://control.perconsur.app,https://oscarnschez.github.io`
+   y `APP_URL` = `https://control.perconsur.app/` → Deploy. (El portal del cliente carga su mapa desde `APP_URL`.)
+5. En cada dispositivo abre `https://control.perconsur.app`, inicia sesión y configura Ajustes → Rastreo GPS e Información
    compartida (dirección y clave):
    - **Capturista:** al conectar aparece «Decide qué información queda» → **Recibir la de la nube en este dispositivo**.
      Si faltara algo, Ajustes → Importar respaldo con el archivo del paso 1.
    - **Consulta:** solo conecta; recibe la información sola.
    - Avisos: vuelve a activarlos en cada teléfono (Ajustes → Avisos).
-6. En iPhone/Android borra el ícono anterior de la pantalla de inicio y agrega el nuevo desde `app.perconsur.app`.
+6. En iPhone/Android borra el ícono anterior de la pantalla de inicio y agrega el nuevo desde `control.perconsur.app`.
 
 ### Enlace corto con TinyURL (opcional)
 

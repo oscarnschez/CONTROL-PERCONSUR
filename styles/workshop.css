@@ -1,5 +1,7 @@
 /* Operación → Taller: tablero, órdenes, diagrama interactivo, llantas, fotos y reportes */
 .lg-t-orange{--lg-c:#9A3E07;--lg-bg:#FFEBDD;--lg-dot:#F26F22}
+/* Perfil Taller: el tablero de Taller es su inicio (no hay «Operación» a la cual regresar) */
+html[data-role="taller"] .mt-page>.nav-top .nav-back{visibility:hidden}
 :root[data-theme="dark"] .lg-t-orange{--lg-c:#FFB07E;--lg-bg:#3A2112;--lg-dot:#FF7A33}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .lg-t-orange{--lg-c:#FFB07E;--lg-bg:#3A2112;--lg-dot:#FF7A33}}
 

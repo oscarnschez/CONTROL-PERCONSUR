@@ -22,6 +22,20 @@ export const AUTH = {
     "role": "admin",
     "salt": "v0Ulqp45h9XPtzNW+RasZw==",
     "hash": "PqKSRM9LNEWX0cmIXicq8boZS5E1SyJ0J5W1Cy2f0O8="
+  },
+  {
+    "id": "5d7de7149eb2cd7c87fa54dee801f85019e304f86c7ee828de766f8113e476d0",
+    "name": "Administrador",
+    "role": "admin",
+    "salt": "v0Ulqp45h9XPtzNW+RasZw==",
+    "hash": "PqKSRM9LNEWX0cmIXicq8boZS5E1SyJ0J5W1Cy2f0O8="
+  },
+  {
+    "id": "99d54374c3b955ad78c284324c30638e16ef447ef8b6aedff6aa9c2a21ebc134",
+    "name": "Taller",
+    "role": "taller",
+    "salt": "l1ieloZ0dx4j0IzDgLWhRg==",
+    "hash": "6rvcmXy+5BRla30wCHFf/VjNpmsj3rV2lxsgdjOPswU="
   }
 ],
 };

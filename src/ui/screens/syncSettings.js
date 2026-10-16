@@ -33,7 +33,7 @@ export async function syncSettingsScreen() {
       <form data-cfg novalidate>
         <label class="fld"><span class="fl">Dirección del intermediario</span><input class="in" name="url" type="url" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://perconsur-gps.….workers.dev" value="${esc(c.url || getSetting('gpsUrl', ''))}" enterkeyhint="next"></label>
         <label class="fld"><span class="fl">Clave de acceso a la información</span><span class="in-w"><input class="in" name="key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(c.key)}" enterkeyhint="next"><button type="button" class="in-act" data-show aria-label="Mostrar clave">${icon.eye}</button></span>
-          <span class="fhint">La clave de capturista (DATA_WRITE_KEY) publica; la de consulta (DATA_READ_KEY) solo permite ver. Se guarda solo en este dispositivo y no se incluye en los respaldos.</span></label>
+          <span class="fhint">La clave de capturista (DATA_WRITE_KEY) publica; la de consulta (DATA_READ_KEY) solo permite ver; la de Taller (DATA_TALLER_KEY) recibe y captura solo Taller. Se guarda solo en este dispositivo y no se incluye en los respaldos.</span></label>
         <label class="fld"><span class="fl">Nombre de este dispositivo <small>(opcional)</small></span><input class="in" name="name" maxlength="40" autocomplete="off" placeholder="p. ej. Oficina – iPad" value="${esc(c.name)}" enterkeyhint="done"></label>
         <p class="gps-st" data-st></p>
         <div class="sheet-acts"><button type="button" class="btn-secondary" data-test>${icon.refresh}<span>Probar</span></button><button type="submit" class="btn-primary">Guardar</button></div>
@@ -50,9 +50,9 @@ export async function syncSettingsScreen() {
   function drawState() {
     const st = sync.status(), box = root.querySelector('[data-state]');
     const prog = st.progress ? ` ${st.progress.done}/${st.progress.total}` : '';
-    const phase = st.phase === 'archivos' ? (st.role === 'write' ? 'Subiendo archivos' : 'Descargando archivos') + prog
+    const phase = st.phase === 'archivos' ? (st.role === 'write' || st.role === 'taller' ? 'Subiendo o descargando archivos' : 'Descargando archivos') + prog
       : st.phase === 'publicando' ? 'Publicando información…' : st.phase === 'recibiendo' ? 'Recibiendo información…' : '';
-    let html = `<div class="sync-role"><span class="st ${st.role ? 'st-generado' : ''}">${roleText(st.role)}</span>${st.role === 'read' ? '<span class="sync-ro">Solo consulta</span>' : ''}</div>`;
+    let html = `<div class="sync-role"><span class="st ${st.role ? 'st-generado' : ''}">${roleText(st.role)}</span>${st.role === 'read' ? '<span class="sync-ro">Solo consulta</span>' : st.role === 'taller' ? '<span class="sync-ro">Solo Taller</span>' : ''}</div>`;
     if (!st.role) html += line(icon.info, 'Este dispositivo no comparte información. Escribe la dirección y la clave, y pulsa Guardar.');
     if (st.role === 'write') {
       html += st.at && st.remote && st.remote.ver === st.ver ? line(icon.check, `Publicado ${pubText(st.remote)}`, 'ok')
@@ -60,6 +60,15 @@ export async function syncSettingsScreen() {
       if (st.dirty && !phase) html += line(icon.clock, 'Hay cambios pendientes de publicar: se publican solos en unos segundos (o pulsa Publicar ahora).');
       if (st.pendingFiles && !phase) html += line(icon.alert, `${st.pendingFiles} archivo${st.pendingFiles === 1 ? '' : 's'} por subir; se reintenta solo.`, 'warn');
       if (st.fileError) html += line(icon.alert, `Archivos: ${esc(st.fileError)}`, 'warn');
+      if (st.taller && st.taller.enabled) html += line(icon.wrench, `Sección Taller activa: los cambios del teléfono de Taller se aplican aquí y se publican solos${st.taller.published ? ` · parte de Taller publicada ${esc(whenText(st.taller.published.at))}` : ''}.`, 'ok');
+      if (st.tallerError) html += line(icon.alert, `Taller: ${esc(st.tallerError)}`, 'warn');
+    }
+    if (st.role === 'taller') {
+      html += st.ver && st.at ? line(icon.check, `Información de Taller recibida ${esc(whenText(st.at))}`, 'ok')
+        : st.remote === null && st.checkedAt ? line(icon.info, 'El capturista todavía no publica la información de Taller (se publica sola cuando abra la app con la clave de Taller activa).') : line(icon.refresh, 'Esperando la información de Taller…');
+      html += st.tallerPending ? line(icon.clock, `${st.tallerPending} cambio${st.tallerPending === 1 ? '' : 's'} enviado${st.tallerPending === 1 ? '' : 's'} o por enviar: aparecen en los demás dispositivos cuando el capturista los aplica (la próxima vez que abra la app).`)
+        : line(icon.check, 'Todo lo capturado aquí ya está en la información compartida.', 'ok');
+      if (st.fileError) html += line(icon.alert, esc(st.fileError), 'warn');
     }
     if (st.role === 'read') {
       html += st.ver && st.at ? line(icon.check, `Información recibida ${esc(whenText(st.at))}${st.remote && st.remote.ver === st.ver ? ` · publicada ${pubText(st.remote)}` : ''}`, 'ok')
@@ -70,7 +79,8 @@ export async function syncSettingsScreen() {
     if (phase && !publishingNow(st)) html += line(icon.refresh, esc(phase), 'busy');
     if (st.error) html += line(icon.alert, esc(st.error), 'warn');
     const deciding = st.role === 'write' && (st.conflict || sync.needsDecision());
-    if (st.role && !deciding) html += `<div class="sheet-acts col">${st.role === 'write' ? `<button type="button" class="btn-primary" data-pub${st.phase ? ' disabled' : ''}>${icon.cloud}<span>Publicar ahora</span></button>` : `<button type="button" class="btn-primary" data-pull${st.phase ? ' disabled' : ''}>${icon.refresh}<span>Revisar ahora</span></button>`}</div>`;
+    if (st.role === 'taller') html += `<div class="sheet-acts col"><button type="button" class="btn-primary" data-tsync${st.phase ? ' disabled' : ''}>${icon.refresh}<span>Enviar y revisar ahora</span></button></div>`;
+    else if (st.role && !deciding) html += `<div class="sheet-acts col">${st.role === 'write' ? `<button type="button" class="btn-primary" data-pub${st.phase ? ' disabled' : ''}>${icon.cloud}<span>Publicar ahora</span></button>` : `<button type="button" class="btn-primary" data-pull${st.phase ? ' disabled' : ''}>${icon.refresh}<span>Revisar ahora</span></button>`}</div>`;
     box.innerHTML = html;
     drawSignal(st);
     drawDecision();
@@ -120,15 +130,19 @@ export async function syncSettingsScreen() {
     let t;
     try { t = await sync.test(url, key); } catch (e) { setSt(`${icon.alert}<span>${esc(e.message)}</span>`, 'warn'); return; }
     const wasRole = sync.role();
+    if (t.role === 'taller' && wasRole !== 'taller') {
+      const ok = await actionSheet({ title: 'Este dispositivo será de Taller', message: 'Recibirá solo la información de Taller (unidades, remolques y mantenimiento) y enviará lo que se capture en Taller. Lo demás que tenga guardado este dispositivo se reemplaza por la información de Taller.', actions: [{ label: 'Continuar', value: true, style: 'primary' }] });
+      if (!ok) { setSt(''); return; }
+    }
     if (t.role === 'read' && wasRole !== 'read') {
       const ok = await actionSheet({ title: 'Este dispositivo será de consulta', message: 'Mostrará la información que publica el capturista y no podrá capturar ni modificar. Lo que tenga guardado en este dispositivo se reemplazará por la información compartida.', actions: [{ label: 'Continuar', value: true, style: 'primary' }] });
       if (!ok) { setSt(''); return; }
     }
     try { await sync.connect({ url, key, name }); } catch (e) { setSt(`${icon.alert}<span>${esc(e.message)}</span>`, 'warn'); return; }
     setSt(`${icon.check}<span>Guardado · ${roleText(t.role)}</span>`, 'ok');
-    toast(t.role === 'write' ? 'Este dispositivo es el capturista' : 'Este dispositivo es de consulta');
+    toast(t.role === 'write' ? 'Este dispositivo es el capturista' : t.role === 'taller' ? 'Este dispositivo es de Taller' : 'Este dispositivo es de consulta');
     drawState();
-    if (t.role === 'read') sync.receive({ force: true });
+    if (t.role === 'read' || t.role === 'taller') sync.receive({ force: true });
     else if (!sync.needsDecision()) sync.publishAll();
   }
 
@@ -140,10 +154,11 @@ export async function syncSettingsScreen() {
     setSt(`${icon.refresh}<span>Probando…</span>`);
     try {
       const t = await sync.test(url, key);
-      setSt(`${icon.check}<span>Conexión correcta · clave de ${t.role === 'write' ? 'capturista' : 'consulta'}${t.published ? ` · información publicada ${pubText(t.published)}` : ' · todavía sin información publicada'}. Pulsa Guardar.</span>`, 'ok');
+      setSt(`${icon.check}<span>Conexión correcta · clave de ${t.role === 'write' ? 'capturista' : t.role === 'taller' ? 'Taller' : 'consulta'}${t.published ? ` · información publicada ${pubText(t.published)}` : ' · todavía sin información publicada'}. Pulsa Guardar.</span>`, 'ok');
     } catch (err) { setSt(`${icon.alert}<span>${esc(err.message)}</span>`, 'warn'); }
   });
   on(root, 'click', '[data-pub]', async () => { const ok = await sync.publish({ manual: true }); if (ok) toast('Información publicada'); });
+  on(root, 'click', '[data-tsync]', async () => { await sync.publish({ manual: true }); await sync.receive({ force: true }); if (!sync.status().error) toast('Taller al día'); });
   on(root, 'click', '[data-pull]', async () => { await sync.receive({ force: true }); if (!sync.status().error) toast('Información al día'); });
   on(root, 'click', '[data-adopt]', async () => {
     const ok = await actionSheet({ title: '¿Recibir la información de la nube?', message: 'Los registros de este dispositivo (catálogos, documentos, Logística…) se reemplazarán por los de la nube. Los borradores se conservan.', actions: [{ label: 'Recibir', value: true, style: 'destructive' }] });

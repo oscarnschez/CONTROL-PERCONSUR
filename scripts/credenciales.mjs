@@ -4,6 +4,7 @@
  *
  * Uso:   node scripts/credenciales.mjs             reemplaza las credenciales actuales
  *        node scripts/credenciales.mjs --agregar   agrega otro usuario a la lista
+ *        … --rol=taller                             perfil del usuario (admin por omisión; taller = solo Taller y mantenimientos)
  * Pide usuario, nombre a mostrar y contraseña (la contraseña no se ve en pantalla mientras escribes).
  * Después ejecuta:  node scripts/precache.mjs
  */
@@ -46,7 +47,9 @@ if (pass.length < 10) { console.error('Usa una contraseña de al menos 10 caract
 const id = createHash('sha256').update(`${PEPPER}|${user}`, 'utf8').digest('hex');
 const salt = randomBytes(16);
 const hash = pbkdf2Sync(Buffer.from(pass, 'utf8'), salt, ITERATIONS, 32, 'sha256');
-const entry = { id, name, role: 'admin', salt: salt.toString('base64'), hash: hash.toString('base64') };
+const roleArg = (process.argv.find((a) => a.startsWith('--rol=')) || '--rol=admin').slice(6);
+if (!['admin', 'taller'].includes(roleArg)) { console.error('Perfil no válido: usa --rol=admin o --rol=taller.'); process.exit(1); }
+const entry = { id, name, role: roleArg, salt: salt.toString('base64'), hash: hash.toString('base64') };
 
 let users = [];
 if (process.argv.includes('--agregar') && existsSync(OUT)) {

@@ -20,19 +20,25 @@ import { currentSession, logout } from '../../auth/gate.js';
 import { configured as gpsConfigured } from '../../services/gps.js';
 import { role as syncRole } from '../../services/sync.js';
 import { roleText } from '../../domain/sync/sync.js';
+import { isAdmin, roleCfg } from '../../config/roles.js';
 
 export async function settingsScreen() {
   const th = themePref();
   const ses = currentSession();
   const mig = getSetting('legacyMigrated');
   const sr = syncRole();
+  /* Perfil Taller: solo apariencia, información compartida, aplicación, sesión e información legal */
+  const admin = isAdmin(ses && ses.role);
   const s = screen(`<div class="page">
     <header class="page-top"><h1 class="title">Ajustes</h1></header>
     <section class="grp"><div class="grp-h"><h3>Apariencia</h3></div><div class="grp-b">
       <div class="seg wide">${[['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([v, l]) => `<button type="button" class="seg-b${th === v ? ' on' : ''}" data-theme-v="${v}">${l}</button>`).join('')}</div>
       <label class="sw-row snd-row"><span class="sw-tx">Sonidos<small>Al abrir la app, al confirmar una acción y al publicar o recibir la información.</small></span><input type="checkbox" switch class="sw" data-sound${soundsOn() ? ' checked' : ''}></label>
     </div></section>
-    <section class="grp"><div class="grp-h"><h3>Empresa</h3></div><div class="grp-b list-actions">
+    ${admin ? '' : `<section class="grp"><div class="grp-h"><h3>Información compartida</h3></div><div class="grp-b list-actions">
+      <a class="row-btn" href="#/ajustes/compartir">${icon.people}<span>Información compartida</span><small>${esc(roleText(sr))}</small>${icon.chev}</a>
+    </div><p class="grp-note">Perfil ${esc(roleCfg(ses && ses.role).label)}: este usuario ve y captura solo Taller y mantenimientos.</p></section>`}
+    ${admin ? `<section class="grp"><div class="grp-h"><h3>Empresa</h3></div><div class="grp-b list-actions">
       ${PUERTO_COMPANIES.map((k) => { const c = getCompany(k); return `<a class="row-btn" href="#/ajustes/empresa/${k}"><span class="co-logo sm ${c.mark ? 'mark' : 'wide'}"><img src="${esc(c.logo)}" alt=""></span><span>${esc(c.legal)}</span><small>Serie ${esc(c.folioSerie)}</small>${icon.chev}</a>`; }).join('')}
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Integraciones</h3></div><div class="grp-b list-actions">
@@ -46,6 +52,7 @@ export async function settingsScreen() {
       <div class="row-info" data-storage>${icon.info}<span>Calculando almacenamiento…</span></div>
     </div>
     <p class="grp-note">${sr === 'read' ? 'Este dispositivo es de consulta: muestra la información que publica el capturista.' : sr === 'write' ? 'Los documentos, fotos y catálogos se guardan en este dispositivo y se publican para los dispositivos de consulta. Exporta un respaldo con regularidad.' : 'Los documentos, fotos y catálogos se guardan solo en este dispositivo. Exporta un respaldo con regularidad.'}${mig && mig.found ? ' Los datos del sistema anterior se migraron automáticamente.' : ''}</p></section>
+    ` : ''}
     <section class="grp"><div class="grp-h"><h3>Aplicación</h3></div><div class="grp-b list-actions">
       <div class="row-info" data-offline>${icon.cloudOff}<span>Revisando uso sin conexión…</span></div>
       ${isStandalone() ? '' : `<button type="button" class="row-btn" data-a="install">${icon.phone}<span>Instalar en la pantalla de inicio</span>${icon.chev}</button>`}

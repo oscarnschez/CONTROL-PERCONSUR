@@ -2,7 +2,9 @@
  * PERCONSUR — arranque de la aplicación (se carga solo después de iniciar sesión; ver src/auth/gate.js).
  * Orden: base de datos → ajustes/empresas/catálogos → migración del sistema anterior → rutas.
  */
-import { startRouter, route, go, refresh } from './core/router.js';
+import { startRouter, route, go, refresh, currentPath } from './core/router.js';
+import { currentSession } from './auth/gate.js';
+import { roleCfg, canRoute, isAdmin } from './config/roles.js';
 import { openDB } from './services/db.js';
 import { loadSettings, getSetting } from './services/settings.js';
 import { loadCompanies } from './services/companies.js';
@@ -30,7 +32,7 @@ import { startTracking } from './services/tracking.js';
 import { startAlerts } from './services/alerts.js';
 import { alertsScreen, alertsSettingsScreen, geofencesScreen } from './ui/screens/alerts.js';
 import { initSync, startSync } from './services/sync.js';
-import { isReadOnly, READ_ONLY_TEXT } from './services/access.js';
+import { isReadOnly, isTallerDevice, READ_ONLY_TEXT } from './services/access.js';
 import { reloadAll } from './services/backup.js';
 import { syncSettingsScreen } from './ui/screens/syncSettings.js';
 import { tripsMapScreen } from './ui/screens/tripsMap.js';
@@ -76,6 +78,20 @@ function mountTabbar() {
      logotipo, «Nuevo» arriba, los módulos de cada sección y el aviso de derechos de autor al pie (tb-brand, tb-sub y
      tb-copy solo se muestran ahí). */
   const sub = (key, mods) => `<div class="tb-sub" data-sub="${key}">${mods.map((m) => `<a href="#${m.route}">${m.nav || m.title}</a>`).join('')}</div>`;
+  if (!isAdmin(ROLE)) {
+    /* Perfil Taller: solo Taller, «Nuevo» (orden de taller) y Ajustes */
+    nav.classList.add('tb-lite');
+    nav.innerHTML = `
+    <div class="tb-brand" aria-hidden="true"><img src="./assets/brand/perconsur-mark.png" alt=""><span class="wordmark">PERCONSUR</span></div>
+    <a href="#/operacion/taller" data-tab="op">${icon.wrench}<span>Taller</span></a>
+    <button type="button" class="tab-new" data-tab="new" aria-label="Nueva orden de taller"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
+    <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>
+    <p class="tb-copy">${copyrightShort()}</p>`;
+    document.body.appendChild(nav);
+    nav.querySelector('.tab-new').addEventListener('click', () => import('./ui/screens/workshopForms.js').then((m) => m.startOrder()));
+    window.addEventListener('routechange', (e) => nav.querySelectorAll('[data-tab]').forEach((a) => { const on = a.dataset.tab === e.detail.tab; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }));
+    return;
+  }
   nav.innerHTML = `
     <div class="tb-brand" aria-hidden="true"><img src="./assets/brand/perconsur-mark.png" alt=""><span class="wordmark">PERCONSUR</span></div>
     <a href="#/" data-tab="home">${icon.home}<span>Inicio</span></a>
@@ -122,68 +138,77 @@ const capture = (handler) => (params, q) => {
   return null;
 };
 
+/* Perfil de la sesión: cada pantalla verifica que el perfil la pueda abrir (si no, va a su inicio) */
+const ROLE = (currentSession() || {}).role;
+document.documentElement.dataset.role = ROLE || '';
+const R = (pattern, handler, opts) => route(pattern, (params, q) => {
+  if (canRoute(ROLE, currentPath())) return handler(params, q);
+  go(roleCfg(ROLE).home, { replace: true });
+  return null;
+}, opts);
+
 function routes() {
-  route('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
-  route('/administracion', adminScreen, { name: 'admin', tabs: true, tab: 'admin' });
-  route('/operacion', operationScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/ordenes', ordersScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/ordenes/nueva', capture(orderNewScreen), { name: 'wizard' });
-  route('/operacion/ordenes/vincular', capture(ordersLegacyScreen), { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/ordenes/:id', orderDetailScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/ordenes/:id/editar/:step', capture(orderEditScreen), { name: 'wizard' });
-  route('/operacion/logistica', logisticsScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/logistica/historial', logisticsHistoryScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/logistica/u/:id', logisticsUnitScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/logistica/monitoreo', gpsMonitorScreen, { name: 'monitor', tabs: true, tab: 'op' });
-  route('/operacion/logistica/vacios', emptiesScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/logistica/llenos', fullsScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/logistica/llenos/:id', fullDetailScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/mapa', tripsMapScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/taller', workshopScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/taller/equipo/:type/:id', workshopEquipmentScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/taller/orden/:id', workshopOrderScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/taller/reporte/:id', workshopOrderReportScreen, { name: 'wizard' });
-  route('/operacion/taller/reporte-equipo/:type/:id', workshopEquipmentReportScreen, { name: 'wizard' });
-  route('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/operacion/combustible/:id', fuelUnitScreen, { name: 'op', tabs: true, tab: 'op' });
-  route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'admin' });
-  route('/doc/:id', docDetailScreen, { name: 'doc', tabs: true, tab: 'admin' });
-  route('/listo/:id', doneScreen, { name: 'done' });
-  route('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'admin' });
-  route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'admin' });
-  route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'admin' });
-  route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'admin' });
-  route('/operadores/importar', capture(tripImportScreen), { name: 'wizard' });
-  route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'admin' });
-  route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'admin' });
-  route('/operadores/:id/estado', capture(statementScreen), { name: 'wizard' });
-  route('/unidades', unitsScreen, { name: 'units', tabs: true, tab: 'admin' });
-  route('/unidades/vencimientos', unitAlertsScreen, { name: 'units', tabs: true, tab: 'admin' });
-  route('/unidades/revision', unitReviewScreen, { name: 'units', tabs: true, tab: 'admin' });
-  route('/unidades/requisitos', unitRequirementsScreen, { name: 'units', tabs: true, tab: 'admin' });
-  route('/unidades/:id', unitFileScreen, { name: 'units', tabs: true, tab: 'admin' });
-  route('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
-  route('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
-  route('/tarifas', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });
-  route('/tarifas/:id', tariffSheetScreen, { name: 'tar', tabs: true, tab: 'admin' });
-  route('/tarifas/:id/pdf', tariffReportScreen, { name: 'wizard' });
-  route('/tarifario', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });   /* dirección de la versión 1.21 */
-  route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/ajustes/avisos', alertsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/ajustes/avisos/geocercas', geofencesScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/avisos', alertsScreen, { name: 'alerts', tabs: true, tab: 'home' });
-  route('/ajustes/compartir', syncSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/puerto/:company/:step', capture(puertoWizard), { name: 'wizard' });
-  route('/campo/:step', capture(campoWizard), { name: 'wizard' });
+  R('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
+  R('/administracion', adminScreen, { name: 'admin', tabs: true, tab: 'admin' });
+  R('/operacion', operationScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/ordenes', ordersScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/ordenes/nueva', capture(orderNewScreen), { name: 'wizard' });
+  R('/operacion/ordenes/vincular', capture(ordersLegacyScreen), { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/ordenes/:id', orderDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/ordenes/:id/editar/:step', capture(orderEditScreen), { name: 'wizard' });
+  R('/operacion/logistica', logisticsScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/logistica/historial', logisticsHistoryScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/logistica/u/:id', logisticsUnitScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/logistica/monitoreo', gpsMonitorScreen, { name: 'monitor', tabs: true, tab: 'op' });
+  R('/operacion/logistica/vacios', emptiesScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/logistica/llenos', fullsScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/logistica/llenos/:id', fullDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/mapa', tripsMapScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/taller', workshopScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/taller/equipo/:type/:id', workshopEquipmentScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/taller/orden/:id', workshopOrderScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/taller/reporte/:id', workshopOrderReportScreen, { name: 'wizard' });
+  R('/operacion/taller/reporte-equipo/:type/:id', workshopEquipmentReportScreen, { name: 'wizard' });
+  R('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/operacion/combustible/:id', fuelUnitScreen, { name: 'op', tabs: true, tab: 'op' });
+  R('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'admin' });
+  R('/doc/:id', docDetailScreen, { name: 'doc', tabs: true, tab: 'admin' });
+  R('/listo/:id', doneScreen, { name: 'done' });
+  R('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'admin' });
+  R('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'admin' });
+  R('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'admin' });
+  R('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'admin' });
+  R('/operadores/importar', capture(tripImportScreen), { name: 'wizard' });
+  R('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'admin' });
+  R('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'admin' });
+  R('/operadores/:id/estado', capture(statementScreen), { name: 'wizard' });
+  R('/unidades', unitsScreen, { name: 'units', tabs: true, tab: 'admin' });
+  R('/unidades/vencimientos', unitAlertsScreen, { name: 'units', tabs: true, tab: 'admin' });
+  R('/unidades/revision', unitReviewScreen, { name: 'units', tabs: true, tab: 'admin' });
+  R('/unidades/requisitos', unitRequirementsScreen, { name: 'units', tabs: true, tab: 'admin' });
+  R('/unidades/:id', unitFileScreen, { name: 'units', tabs: true, tab: 'admin' });
+  R('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
+  R('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
+  R('/tarifas', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });
+  R('/tarifas/:id', tariffSheetScreen, { name: 'tar', tabs: true, tab: 'admin' });
+  R('/tarifas/:id/pdf', tariffReportScreen, { name: 'wizard' });
+  R('/tarifario', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });   /* dirección de la versión 1.21 */
+  R('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  R('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  R('/ajustes/avisos', alertsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  R('/ajustes/avisos/geocercas', geofencesScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  R('/avisos', alertsScreen, { name: 'alerts', tabs: true, tab: 'home' });
+  R('/ajustes/compartir', syncSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  R('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  R('/puerto/:company/:step', capture(puertoWizard), { name: 'wizard' });
+  R('/campo/:step', capture(campoWizard), { name: 'wizard' });
 }
 
 /* "Tienes un documento sin terminar" al abrir la app */
 async function offerRecovery() {
   const path = (location.hash.replace(/^#/, '') || '/');
-  if (path !== '/' || isReadOnly()) return;
+  if (path !== '/' || isReadOnly() || !isAdmin(ROLE)) return;
   const pend = await pendingDrafts();
   if (!pend.length) return;
   const d = pend[0], isP = d.type === 'puerto';
@@ -216,7 +241,7 @@ async function boot() {
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');
     try { localStorage.setItem('pcs-version', APP_VERSION); } catch (e) { /* */ }
     /* Siembra, borradores y migración escriben registros: no aplican en un dispositivo de consulta */
-    const ro = isReadOnly();
+    const ro = isReadOnly() || isTallerDevice();
     if (!ro) { await seedIfNeeded(); await seedYardsIfNeeded(); await seedTariffsIfNeeded(); await reconcileMirrors(); }
     const mig = ro ? null : await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
     routes();
@@ -237,7 +262,7 @@ async function boot() {
     window.addEventListener('unhandledrejection', (e) => {
       if (!e.reason || !e.reason.readOnly) return;
       e.preventDefault();
-      toast(READ_ONLY_TEXT, { type: 'warn', ms: 3500 });
+      toast(e.reason.message || READ_ONLY_TEXT, { type: 'warn', ms: 3500 });
       reloadAll().then(() => refresh()).catch(() => {});
     });
     if (!('switch' in document.createElement('input'))) document.documentElement.classList.add('sw-fallback');

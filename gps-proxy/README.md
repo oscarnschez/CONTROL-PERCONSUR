@@ -280,6 +280,31 @@ los archivos: con más de ~900 PDF y fotos tarda más de un día y la app contin
 Cada revisión de un dispositivo de consulta es 1 lectura. Si la operación crece mucho, el plan Workers Paid (5 USD al mes)
 amplía estos límites.
 
+### Teléfono de Taller (opcional): secreto `DATA_TALLER_KEY`
+
+Para que el personal de Taller capture **solo Taller y mantenimientos** desde su propio teléfono, sin ver finanzas:
+
+```
+Capturista —PUT foto completa (DATA_WRITE_KEY) + foto reducida de Taller→  Worker  ←GET foto de Taller (DATA_TALLER_KEY)— Teléfono de Taller
+Capturista ←GET cambios de Taller (cada 2 min con la app abierta)— Worker ←PUT cambios + fotos del taller— Teléfono de Taller
+```
+
+- El teléfono de Taller recibe una **foto reducida**: órdenes de taller, fallas, llantas, aceite, fotos del taller,
+  unidades, remolques, el estado de cada unidad y los odómetros. **Nunca** recibe viajes, cobros, tarifas, operadores,
+  documentos, rutas ni importes. Con su clave el Worker **no** entrega la información completa (`403`).
+- Lo que se captura en Taller se envía a una bandeja del Worker. El capturista la revisa cada 2 min con la app abierta,
+  aplica los cambios (gana el más reciente; un folio de taller repetido recibe el siguiente libre), publica y le devuelve
+  el acuse. Hasta entonces el teléfono de Taller conserva sus cambios aunque reciba información nueva.
+- La clave de Taller sube fotos nuevas, pero no reemplaza ni borra archivos existentes.
+- El inicio de sesión también limita la pantalla: el usuario con perfil **taller** (en `src/config/auth.js`, generado con
+  `node scripts/credenciales.mjs --agregar --rol=taller`) solo ve Taller y Ajustes básicos.
+
+**Activarlo:** Worker → Settings → Variables and Secrets → Add → tipo **Secret** → `DATA_TALLER_KEY` = otra frase larga al
+azar (distinta de las otras dos) → Deploy. En el teléfono de Taller: Ajustes → **Información compartida** → la misma
+dirección + `DATA_TALLER_KEY` → Guardar. `/salud` muestra `"taller": true`. Consumo extra de KV: 2 escrituras cuando cambia
+lo de Taller (no en cada publicación) y 2 por cada envío del teléfono de Taller. Para quitarle el acceso al teléfono,
+cambia o borra `DATA_TALLER_KEY`.
+
 ## Avisos (vencimientos, llegadas y salidas)
 
 La app avisa de **documentos por vencer** y de **llegadas y salidas** de las unidades en patios, terminales, plantas,
@@ -334,4 +359,4 @@ Ejecuta el Worker contra un servidor que imita la API de IOPGPS (firma `md5(md5(
 3. Abre `/salud` para confirmar. La app no cambia.
 
 Si sospechas que `PCS_KEY` se filtró, cámbiala en Cloudflare y en PERCONSUR → Ajustes → GPS.
-Igual con `DATA_WRITE_KEY` o `DATA_READ_KEY`: cámbiala en Cloudflare y en Ajustes → Información compartida de cada dispositivo.
+Igual con `DATA_WRITE_KEY`, `DATA_READ_KEY` o `DATA_TALLER_KEY`: cámbiala en Cloudflare y en Ajustes → Información compartida de cada dispositivo.

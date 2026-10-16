@@ -99,7 +99,7 @@ export function whenText(ms, now = Date.now()) {
   if (day(ms) === day(now - 86400000)) return `ayer ${t}`;
   return `${two(d.getDate())}/${two(d.getMonth() + 1)}/${d.getFullYear()} ${t}`;
 }
-export const roleText = (role) => (role === 'write' ? 'Capturista' : role === 'read' ? 'Consulta' : 'Sin configurar');
+export const roleText = (role) => (role === 'write' ? 'Capturista' : role === 'read' ? 'Consulta' : role === 'taller' ? 'Taller' : 'Sin configurar');
 export function sizeText(bytes) {
   const n = Number(bytes) || 0;
   if (n < 1024) return `${n} B`;
@@ -109,4 +109,69 @@ export function sizeText(bytes) {
 /* Nombre de quien publicó: viaja codificado en el encabezado (los encabezados HTTP no admiten acentos) */
 export function byText(by) {
   try { return decodeURIComponent(String(by || '')); } catch (e) { return String(by || ''); }
+}
+
+/* ===== Sección Taller (clave DATA_TALLER_KEY del Worker) =====
+ * Un teléfono de Taller captura solo mantenimiento. Recibe una foto REDUCIDA que publica el capturista (Taller, unidades,
+ * remolques y lo mínimo para el taller: sin viajes, cobros, tarifas, operadores ni documentos) y envía sus cambios por
+ * separado (bandeja). El capturista los aplica, los incluye en su información y devuelve el acuse (acks) en la siguiente
+ * foto de Taller; hasta entonces el teléfono conserva sus cambios pendientes encima de lo recibido. */
+export const TALLER_STORES = ['maintenanceOrders', 'maintenanceServices', 'maintenanceIssues', 'maintenanceComponents', 'tireReplacements', 'oilChanges',
+  'maintenanceAttachments', 'maintenanceEvents', 'maintenanceProfiles', 'maintenanceParts'];
+/* Lo que el teléfono de Taller envía (los remolques: el taller clasifica chasis, jaula o tolva) */
+export const TALLER_OPS = [...TALLER_STORES, 'trailers'];
+/* Lo que el teléfono de Taller recibe y guarda (reemplaza en cada foto) */
+export const TALLER_MIRROR = [...TALLER_STORES, 'companies', 'vehicles', 'trailers', 'counters', 'logisticsOperations', 'fuelRecords'];
+/* Donde el teléfono de Taller puede escribir (el resto de la base rechaza escrituras, como en Consulta) */
+export const TALLER_WRITABLE = new Set([...TALLER_OPS, 'counters', 'attachments', ...READER_WRITABLE]);
+export const isTallerFile = (att) => fileShared(att) && /^mt:/.test(String(att.owner || ''));
+const LG_KEEP = ['id', 'vehicleId', 'trailerId', 'status', 'closedAt', 'deletedAt', 'startedAt', 'updatedAt'];
+const FUEL_KEEP = ['id', 'vehicleId', 'date', 'time', 'odometer', 'deletedAt', 'updatedAt'];
+const pick = (r, ks) => Object.fromEntries(ks.filter((k) => k in r).map((k) => [k, r[k]]));
+const arr = (x) => (Array.isArray(x) ? x : []);
+/* Foto de Taller: solo lo necesario (operaciones sin ruta ni operador; recargas solo con su odómetro, sin litros ni importes) */
+export function buildTallerSnapshot({ data, files, ver, acks = {}, by = '', appVersion = '', at = Date.now() }) {
+  const out = {};
+  for (const s of TALLER_STORES) out[s] = arr(data[s]);
+  out.companies = arr(data.companies);
+  out.vehicles = arr(data.vehicles);
+  out.trailers = arr(data.trailers);
+  out.counters = arr(data.counters).filter((c) => /^mtto:/.test(String(c.id || '')));
+  out.logisticsOperations = arr(data.logisticsOperations).map((r) => pick(r, LG_KEEP));
+  out.fuelRecords = arr(data.fuelRecords).filter((r) => Number.isFinite(r.odometer)).map((r) => pick(r, FUEL_KEEP));
+  return { app: 'perconsur', kind: 'taller', format: FORMAT, ver, by, appVersion, at, acks, data: out, files: arr(files).filter(isTallerFile).map(fileMeta) };
+}
+export function readTallerSnapshot(obj) {
+  if (!obj || obj.app !== 'perconsur' || obj.kind !== 'taller') throw new Error('La información de Taller de la nube no corresponde a PERCONSUR.');
+  if (obj.format !== FORMAT) throw new Error('La información de la nube es de otra versión de la app. Actualiza la app en este dispositivo.');
+  if (!obj.data || typeof obj.data !== 'object' || !VER_RE.test(String(obj.ver || ''))) throw new Error('La información de Taller de la nube está incompleta.');
+  const data = {};
+  for (const s of TALLER_MIRROR) {
+    const rows = obj.data[s];
+    if (rows != null && !Array.isArray(rows)) throw new Error(`La información de Taller está dañada (sección «${s}»).`);
+    data[s] = (rows || []).filter((r) => r && typeof r === 'object' && !Array.isArray(r));
+  }
+  const acks = {};
+  if (obj.acks && typeof obj.acks === 'object') for (const [d, q] of Object.entries(obj.acks)) if (VER_RE.test(d) && Number.isInteger(q) && q >= 0) acks[d] = q;
+  const files = arr(obj.files).filter((f) => f && typeof f === 'object' && FILE_ID_RE.test(String(f.id || ''))).map(fileMeta);
+  return { ver: obj.ver, at: Number(obj.at) || 0, by: String(obj.by || ''), acks, data, files };
+}
+/* Huella del contenido (sin versión ni hora): no se vuelve a publicar una foto de Taller idéntica (ahorra escrituras de KV) */
+export function contentSig(obj) {
+  const t = JSON.stringify(obj);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return t.length.toString(36) + '-' + h.toString(36);
+}
+/* Bandeja del teléfono de Taller: { 'store|clave': número } — el número crece con cada cambio; el acuse los retira */
+export const outboxKey = (store, key) => `${store}|${key}`;
+export function splitOutboxKey(k) { const i = k.indexOf('|'); return [k.slice(0, i), k.slice(i + 1)]; }
+export const pendingOf = (outbox, ack = 0) => Object.entries(outbox || {}).filter(([, q]) => q > ack).map(([k, q]) => { const [s, key] = splitOutboxKey(k); return { s, k: key, q }; }).sort((a, b) => a.q - b.q);
+export function pruneOutbox(outbox, ack) { const out = {}; for (const [k, q] of Object.entries(outbox || {})) if (q > ack) out[k] = q; return out; }
+/* Capturista: ¿el cambio que llega de Taller reemplaza al registro local? (el más reciente gana; una baja gana si el registro
+   local no cambió después) */
+export function shouldApply(local, op) {
+  if (!local) return op.v !== null;
+  if (op.v === null) return (local.updatedAt || local.createdAt || 0) <= (op.at || 0);
+  return (op.v.updatedAt || op.v.createdAt || op.v.at || 0) >= (local.updatedAt || local.createdAt || local.at || 0);
 }

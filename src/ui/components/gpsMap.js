@@ -1,10 +1,12 @@
 /*
  * Mapa de la ubicación GPS (Leaflet, incluido en /vendor/leaflet). Se carga al mostrar una unidad con GPS (detalle o tarjeta de Inicio).
- * Mapa base: OpenStreetMap (uso ligero con atribución). El marcador muestra la unidad con el color de su estado de Logística.
+ * Mapa base: OpenStreetMap (uso ligero con atribución). El marcador (el mismo del Centro de Monitoreo) muestra la unidad con el
+ * color de su estado de Logística.
  */
 import { loadLib } from '../../services/libs.js';
 import { esc } from '../../domain/shared/format.js';
 import { icon } from './icons.js';
+import { unitMarkHTML } from '../maps/VehicleMarker.js';
 
 const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const ATTRIB = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
@@ -14,9 +16,10 @@ function ensureCss() {
   const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = './vendor/leaflet/leaflet.css'; l.dataset.leaflet = '1';
   document.head.appendChild(l);
 }
+/* Mismo marcador que el Centro de Monitoreo: círculo del color del estado con silueta de tractocamión y número económico */
 const pinIcon = (L, label, tone, stale) => L.divIcon({
   className: 'gps-pin-wrap', iconSize: null, iconAnchor: [0, 0],
-  html: `<div class="gps-pin lg-t-${esc(tone)}${stale ? ' stale' : ''}"><span class="gps-pin-dot"></span><b>${esc(label)}</b></div>`,
+  html: unitMarkHTML({ label, tone, motion: stale ? 'nosignal' : 'stopped', cls: stale ? 'gps-pin stale' : 'gps-pin' }),
 });
 
 const KIND_ICON = { delivery: 'flag', place: 'flag', city: 'flag', plant: 'building', terminal: 'container', yard: 'yard' };

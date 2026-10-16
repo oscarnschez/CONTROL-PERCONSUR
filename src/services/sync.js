@@ -20,6 +20,7 @@ import * as db from './db.js';
 import { getSetting, setSetting } from './settings.js';
 import { sanitizeImport, reloadAll } from './backup.js';
 import { setReadOnly } from './access.js';
+import { play } from './sounds.js';
 import { refresh as refreshRoute } from '../core/router.js';
 import { APP_VERSION } from '../config/reference.js';
 import { SYNC_STORES, fileShared, fileMeta, fileSig, newVer, newDevice, uploadPlan, downloadPlan, buildSnapshot, readSnapshot, rowsWithKey } from '../domain/sync/sync.js';
@@ -179,6 +180,7 @@ export function publish({ force = false, manual = false } = {}) {
       state.remote = r.published || null; state.conflict = null; state.error = '';
       if (dirtySeq === seq) lsDel(LS.dirty); else schedule(DEBOUNCE);
       if (state.fileError || state.pendingFiles) retryLater(FILE_RETRY);
+      play('cloud');
       return true;
     } catch (e) {
       if (e.status === 409) { state.conflict = (e.body && e.body.published) || { ver: '' }; state.remote = e.body && e.body.published ? e.body.published : state.remote; state.error = ''; }
@@ -290,6 +292,7 @@ export function receive({ force = false, asWriter = false, auto = false } = {}) 
         }
         changed = true;
         await afterChange();
+        play('cloud');
       }
       const want = lsGet(LS.want);
       if (Array.isArray(want) && await pullFiles(want)) await afterChange();

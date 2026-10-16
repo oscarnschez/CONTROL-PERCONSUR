@@ -21,6 +21,7 @@ import { icon } from '../ui/components/icons.js';
 import { APP_VERSION, APP_BUILD } from '../config/reference.js';
 import { copyrightText, appBadge } from '../config/legal.js';
 import { startBrandIntro } from '../ui/components/brandIntro.js';
+import { preload, unlock } from '../services/sounds.js';
 import { closeSplash } from '../ui/components/opening.js';
 
 const SESSION_KEY = 'pcs-session';
@@ -158,6 +159,7 @@ function showLogin() {
   user.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); pass.focus(); } });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    unlock();   /* el toque de «Entrar» habilita el sonido de la transición de marca */
     if (busy || lockedFor()) return;
     show(false);
     if (!user.value.trim()) { msg.className = 'login-msg warn'; msg.textContent = 'Escribe tu usuario.'; user.focus(); return; }
@@ -206,5 +208,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !currentSession() && !document.querySelector('.login')) logout();
 });
 
+preload();
 if (currentSession()) launchApp();
 else showLogin();

@@ -37,7 +37,7 @@ try:
     pg.wait_for_timeout(650); pg.screenshot(path='shots/a3_transicion.png')
     pg.wait_for_selector('.brand-intro',state='detached',timeout=10000); pg.wait_for_selector('.home',timeout=10000)
     dur=pg.evaluate("performance.getEntriesByName('pcs-intro-end')[0].startTime-performance.getEntriesByName('pcs-intro-start')[0].startTime")
-    ok(1200<=dur<=2400,'la transición termina sola y dura entre 1.2 y 2.4 s: %.2f s'%(dur/1000))
+    ok(2200<=dur<=3200,'la transición termina sola, al compás del sonido de entrada (2.2 a 3.2 s): %.2f s'%(dur/1000))
     ok(pg.locator('.login').count()==0 and pg.locator('.tabbar').count()==1 and pg.locator('.bi-hidden').count()==0 and pg.locator('.home-top .brand-mark').evaluate("e=>getComputedStyle(e).visibility")=='visible','usuario sin distinguir mayúsculas/espacios + contraseña correcta → entra a la app con el logotipo de Inicio a la vista')
     pg.screenshot(path='shots/a3_dentro.png')
     ok(pg.evaluate("localStorage.getItem('pcs-auth-guard')")=='{"n":0,"until":0}','el contador de intentos se reinicia al entrar')

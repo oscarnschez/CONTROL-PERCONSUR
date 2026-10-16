@@ -7,11 +7,16 @@
  *   Salida    cuando el panel ya está en pantalla, el logotipo viaja a su lugar en el encabezado de Inicio (o al menú
  *             lateral en computadora) y el fondo se desvanece sobre el panel. Si no hay encabezado a la vista, solo se
  *             desvanece.
- * Dura cerca de 1.8 s; con «reducir movimiento» no hay desplazamientos: la marca se muestra quieta y se desvanece (~1 s).
- * Sin dependencias: CSS (styles/screens.css) y la imagen del logotipo, ya cargada por la pantalla de acceso.
+ * Sonido: suena intro.mp3 (services/sounds.js) y la animación va a su compás: golpe inicial (0 s) → el logotipo se
+ * revela hasta el punto más alto (0.7 s), entra el nombre; durante la nota sostenida se dibuja la banda (1 s) y aparece
+ * «Bienvenido» (1.35 s); cuando el sonido empieza a apagarse (1.95 s) la marca viaja al encabezado y termina con él (~2.5 s).
+ * Dura cerca de 2.5 s; con «reducir movimiento» no hay desplazamientos: la marca se muestra quieta y se desvanece (~1 s).
+ * Usa CSS (styles/screens.css), la imagen del logotipo (ya cargada por la pantalla de acceso) y el sonido de entrada.
  */
+import { play } from '../../services/sounds.js';
+
 const MARK = './assets/brand/perconsur-mark.png';
-const HOLD = 1250;        /* ms desde que aparece hasta que puede salir (entrada completa + presencia) */
+const HOLD = 1950;        /* ms desde que aparece hasta que puede salir: cuando el sonido de entrada empieza a apagarse */
 const HOLD_STILL = 700;   /* con «reducir movimiento» */
 const SETTLE = 240;       /* la primera pantalla termina su animación de entrada antes de medir el encabezado */
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -43,6 +48,7 @@ export function startBrandIntro() {
     </div>`;
   document.body.appendChild(root);
   performance.mark('pcs-intro-start');
+  play('intro');
   const t0 = performance.now();
   let done = false;
   const finish = () => {

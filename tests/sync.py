@@ -18,7 +18,10 @@ def ok(c,m): log.append(('OK  ' if c else 'FAIL')+' '+m)
 def shot(pg,n): pg.screenshot(path=f'{SH}/sync_{n}.png')
 def to_worker(route, req):
     r=route.fetch(url=req.url.replace(W,WL)); route.fulfill(response=r)
+SND="""addEventListener('pcs:sound',e=>{try{const a=JSON.parse(sessionStorage.getItem('__snd')||'[]');a.push(e.detail.name);sessionStorage.setItem('__snd',JSON.stringify(a))}catch(x){}})"""
+def sounds(pg): return pg.evaluate("JSON.parse(sessionStorage.getItem('__snd')||'[]')")
 def setup_ctx(ctx):
+    ctx.add_init_script(SND)
     ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u or 'openfreemap' in u, lambda r:r.abort())
     ctx.route(W+'/**', to_worker)
 def watch(pg):
@@ -85,8 +88,9 @@ try:
     # Publicación automática tras un cambio
     a.evaluate("async(id)=>{const l=await import('./src/services/logistics.js'); await l.setStatus(id,'unloading')}", ids['op']); a.wait_for_timeout(400)
     ok('Cambios por publicar' in txt(a,'[data-syncpill]'),'un cambio queda pendiente: «'+txt(a,'[data-syncpill]')+'»')
-    v1=sa['ver']; sa=wait_sync(a, lambda s: s['ver']!=v1 and not s['dirty'] and not s['phase'], timeout=45)
+    n0=sounds(a).count('cloud'); v1=sa['ver']; sa=wait_sync(a, lambda s: s['ver']!=v1 and not s['dirty'] and not s['phase'], timeout=45)
     ok(sa['ver']!=v1 and wget('/v1/datos/estado')['published']['ver']==sa['ver'],'se publica solo unos segundos después del último cambio (sin pulsar nada)')
+    a.wait_for_timeout(300); ok(sounds(a).count('cloud')==n0+1,'al terminar de publicar suena la nube: '+','.join(sounds(a)[-3:]))
     # Animación al publicar: el logotipo de PERCONSUR envía señal a la nube
     a.goto(BASE+'#/'); a.wait_for_selector('[data-syncpill]'); a.wait_for_timeout(300)
     a.evaluate("()=>{window.__mini=false; new MutationObserver(()=>{if(document.querySelector('[data-syncpill] .ps-mini'))window.__mini=true}).observe(document.body,{subtree:true,childList:true})}")
@@ -154,10 +158,11 @@ try:
     sa=wait_sync(a, lambda s: not s['dirty'] and not s['phase'])
     ok(('f:'+ids['prev']) not in kv(),'un archivo borrado por el capturista también se borra de la nube')
     bp.evaluate("()=>{window.__fc=0; addEventListener('fulls:change',()=>{window.__fc++})}")
-    bp.locator('[data-pull]').click()
+    nb=sounds(bp).count('cloud'); bp.locator('[data-pull]').click()
     sb=wait_sync(bp, lambda s: s['ver']==sa['ver'] and not s['phase'])
     got=bp.evaluate("async(ids)=>{const m=await import('./src/services/media.js'); const l=await import('./src/services/logistics.js'); return {prev:!!(await m.getBlob(ids.prev)), st:l.allRecords().find(o=>o.id===ids.op).status}}", ids)
     ok(got['st']=='empty_transit' and not got['prev'],'«Revisar ahora»: la consulta recibe el cambio y quita el archivo borrado: '+json.dumps(got))
+    bp.wait_for_timeout(300); ok(sounds(bp).count('cloud')==nb+1,'al recibir la información suena la nube en la consulta')
     fcx=bp.evaluate("async()=>{const f=await import('./src/services/fulls.js'); return {n:window.__fc, has:f.all().some(r=>r.containerNumber==='MSCU1112223')}}")
     ok(fcx['has'] and fcx['n']>0,'Control de llenos: la consulta recibe la carga nueva y sus pantallas reciben el aviso de cambio: '+json.dumps(fcx))
 

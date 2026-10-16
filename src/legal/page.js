@@ -2,6 +2,7 @@
  * Página de información legal (legal.html): Aviso de privacidad, Condiciones de uso y Cookies y almacenamiento.
  * Se abre sin iniciar sesión (desde el acceso, Ajustes o el portal de clientes) y no carga datos de la app.
  * Pestañas por dirección: #privacidad (por omisión), #condiciones, #cookies.
+ * Desde el portal de clientes (legal.html?portal) no se muestra «Ir a la aplicación»: el cliente no usa la app.
  */
 import { PRIVACY, TERMS, STORAGE, LEGAL_UPDATED, LEGAL_HOLDER } from './texts.js';
 import { esc } from '../domain/shared/format.js';
@@ -17,6 +18,8 @@ export const TABS = [
 
 const para = (b) => (Array.isArray(b) ? `<ul>${b.map((li) => `<li>${esc(li)}</li>`).join('')}</ul>` : `<p>${esc(b)}</p>`);
 const section = (s) => `<section class="lg-sec" id="${s.id}"><h2>${esc(s.title)}</h2>${s.body.map(para).join('')}</section>`;
+
+const FROM_PORTAL = new URLSearchParams(location.search).has('portal');
 
 function render() {
   const root = document.getElementById('legal');
@@ -35,7 +38,7 @@ function render() {
       <p class="lg-meta">${esc(LEGAL_HOLDER)} · Última actualización: ${esc(LEGAL_UPDATED)}</p>
       ${tab.sections.map(section).join('')}
     </article>
-    <footer class="lg-foot"><a href="./">Ir a la aplicación</a><small>${esc(copyrightText())}</small></footer>`;
+    <footer class="lg-foot">${FROM_PORTAL ? '' : '<a href="./">Ir a la aplicación</a>'}<small>${esc(copyrightText())}</small></footer>`;
 }
 
 window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });

@@ -164,7 +164,7 @@ try:
     ok(cp.locator('.pt-map .vm-lbl').inner_text()=='U12' and 'Unidad U12' in (cp.locator('.pt-map .vm').get_attribute('aria-label') or ''),'portal: el marcador muestra el número de la unidad (U12)')
     ok('PERCONSUR · División Campo' in t and cp.locator('.pt-web a[href="https://www.perconsur.mx"]').count()==1 and cp.locator('.pt-web a').get_attribute('target')=='_blank','portal: «PERCONSUR · División Campo» y enlace al sitio www.perconsur.mx')
     pv=cp.locator('.pt-privacy'); pva=pv.locator('a')
-    ok(pv.count()==1 and 'no usa cookies' in pv.inner_text() and pva.get_attribute('href').endswith('/legal.html#privacidad') and pva.get_attribute('target')=='_blank','portal: aviso de privacidad simplificado (sin cookies) con enlace al aviso integral de la app')
+    ok(pv.count()==1 and 'no usa cookies' in pv.inner_text() and pva.get_attribute('href').endswith('/legal.html?portal#privacidad') and pva.get_attribute('target')=='_blank','portal: aviso de privacidad simplificado (sin cookies) con enlace al aviso integral de la app')
     tr,pl12=pg.evaluate("async(id)=>{const l=await import('./src/services/logistics.js'); const v=l.view(l.opById(id)); return [v.trailer,v.placas]}", ids['op12'])
     li=cp.evaluate("()=>[...document.querySelectorAll('.pt-load .pt-li')].map(e=>[e.querySelector('small').textContent,e.querySelector('b').textContent,(e.querySelector('.pt-li-tx>span')||{}).textContent||''])")
     ok(len(li)==3 and li[0]==['Placas de la unidad',pl12,'Unidad U12'] and li[1][0]=='Placas del remolque' and li[2][:2]==['Contenedor','MSCU1234567'],'portal «Unidad y carga»: placas de la unidad, después las del remolque y el contenedor: '+json.dumps(li))

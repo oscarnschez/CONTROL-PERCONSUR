@@ -15,8 +15,8 @@ import { icon, trailerIcon } from '../ui/components/icons.js';
 import { copyrightText } from '../config/legal.js';
 import { PORTAL_NOTICE } from '../legal/texts.js';
 
-/* Aviso de privacidad integral: legal.html de la app (este código se carga desde ella) */
-const PRIVACY_URL = new URL('../../legal.html#privacidad', import.meta.url).href;
+/* Aviso de privacidad integral: legal.html de la app (este código se carga desde ella); «?portal» quita «Ir a la aplicación» */
+const PRIVACY_URL = new URL('../../legal.html?portal#privacidad', import.meta.url).href;
 import { tipoDesc } from '../config/reference.js';
 
 const root = document.getElementById('portal');

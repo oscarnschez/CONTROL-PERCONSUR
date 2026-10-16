@@ -107,7 +107,7 @@ export async function syncAll({ force = false } = {}) {
   await load({ force });
   const ops = new Map(lg.allRecords().map((o) => [o.id, o]));
   const opOf = (id) => (ops.has(id) ? ops.get(id) : undefined);
-  await apply(reconcile(links(), opOf, (op) => destPoint(targetOf(op)), (op) => lg.view(op).operator, (op) => { const v = lg.view(op); return { placas: v.trailer, type: v.trailerType }; }, (op) => lg.view(op).placas));
+  await apply(reconcile(links(), opOf, (op) => destPoint(targetOf(op)), (op) => { const v = lg.view(op); return v.operatorShared ?? v.operator; }, (op) => { const v = lg.view(op); return { placas: v.trailer, type: v.trailerType }; }, (op) => lg.view(op).placas));
 }
 
 /* ¿Algún cambio de Logística toca el rastreo? (estado, cierre o borrado de una operación) */

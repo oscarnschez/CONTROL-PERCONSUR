@@ -22,6 +22,9 @@
  *   DATA_READ_KEY   Secret  clave de los dispositivos de consulta (solo reciben)
  *   ALERTS          KV      opcional; avisos (geocercas, vencimientos, suscripciones push). Si falta se usa TRACKING
  *   VAPID_SUBJECT   Texto   opcional; contacto para los servicios de push (por defecto la dirección de la app)
+ *   TINYURL_TOKEN   Secret  opcional; token de la API de TinyURL: el enlace del cliente se acorta con el número de
+ *                           contenedor como alias (tinyurl.com/MSCU1234567). Sin él se comparte el enlace normal.
+ *   TINYURL_DOMAIN  Texto   opcional; dominio de TinyURL (por defecto tinyurl.com; uno propio si el plan lo incluye)
  *   Cron Trigger    cada 5 minutos (expresión «cada 5 min», ver README) para revisar llegadas, salidas y vencimientos sin la app abierta
  *
  * Endpoints:
@@ -355,9 +358,9 @@ const point = (p) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) &&
   ? { lat: Math.round(+p.lat * 1e6) / 1e6, lng: Math.round(+p.lng * 1e6) / 1e6, approx: !!p.approx } : null);
 /* active | finished | revoked | expired (vencido por tiempo) */
 const stateOf = (rec, now = Date.now()) => (rec.state === 'active' && now > rec.expiresAt ? 'expired' : rec.state);
-const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', trailer: rec.trailer || '', plates: rec.plates || '', container: rec.container || '', containerType: rec.containerType || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
+const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', trailer: rec.trailer || '', plates: rec.plates || '', container: rec.container || '', containerType: rec.containerType || '', short: rec.short || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
 /* Vista interna (solo con PCS_KEY) */
-const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', plates: m.plates || '', container: m.container || '', containerType: m.containerType || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
+const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', plates: m.plates || '', container: m.container || '', containerType: m.containerType || '', short: m.short || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
 
 class TrackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 function needKv(env) {
@@ -441,6 +444,45 @@ async function createLink(env, b) {
     status: b.status, state: 'active', createdAt: now, updatedAt: now, expiresAt: now + maxHours(env) * 3600 * 1000, closedAt: null, closeReason: null }, b);
   await putLink(env, rec);
   return { rec, reused: false };
+}
+/*
+ * Enlace corto con TinyURL (opcional, secreto TINYURL_TOKEN; el token nunca llega al navegador). Alias = número de
+ * contenedor, el mismo que imprime la nota de entrega (tinyurl.com/MSCU1234567):
+ *   1. se crea el alias; 2. si ya existe en la cuenta de PERCONSUR (el contenedor tuvo otro viaje) se apunta al enlace
+ *   nuevo; 3. si lo usa otra cuenta, contenedor + día y mes (MSCU1234567-1610); 4. si no, un alias al azar.
+ * Se hace una vez por enlace y contenedor (shortFor); si TinyURL falla se comparte el enlace normal y se reintenta al
+ * volver a compartir.
+ */
+const TINY_API = 'https://api.tinyurl.com';
+async function tiny(env, path, method, body) {
+  try {
+    const r = await fetch(TINY_API + path, { method, headers: { Authorization: 'Bearer ' + env.TINYURL_TOKEN, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
+    let b = null; try { b = await r.json(); } catch (e) { /* */ }
+    return r.ok && b && b.data && !(b.errors || []).length ? b.data : null;
+  } catch (e) { return null; }
+}
+const tinyDomain = (env) => (/^[a-z0-9.-]{3,60}$/i.test(String(env.TINYURL_DOMAIN || '')) ? String(env.TINYURL_DOMAIN).toLowerCase() : 'tinyurl.com');
+export async function ensureShort(env, rec, origin) {
+  if (!env.TINYURL_TOKEN || rec.state !== 'active') return false;
+  const alias = (rec.container || '').split(' / ')[0] || '';
+  if (rec.short && (rec.shortFor || '') === alias) return false;
+  const domain = tinyDomain(env), url = origin + '/r/' + rec.id, description = txt(`PERCONSUR rastreo ${rec.unit || ''} ${rec.container || ''}`, 100);
+  const pick = (d, a) => (d && d.tiny_url ? String(d.tiny_url) : d && a ? `https://${domain}/${a}` : '');
+  let short = '';
+  if (alias) {
+    short = pick(await tiny(env, '/create', 'POST', { url, domain, alias, description }), alias)
+      || pick(await tiny(env, '/change', 'PATCH', { url, domain, alias }), alias);
+    if (!short) {
+      const d = new Date(), dm = String(d.getUTCDate()).padStart(2, '0') + String(d.getUTCMonth() + 1).padStart(2, '0');
+      short = pick(await tiny(env, '/create', 'POST', { url, domain, alias: `${alias}-${dm}`, description }), `${alias}-${dm}`);
+    }
+  }
+  if (!short) short = pick(await tiny(env, '/create', 'POST', { url, domain, description }), '');
+  short = short.replace(/^http:/, 'https:');
+  if (!/^https:\/\/[^\s"'<>]{3,120}$/.test(short)) return false;   /* TinyURL no respondió: se reintenta al volver a compartir */
+  rec.short = short; rec.shortFor = alias; rec.updatedAt = Date.now();
+  return true;
 }
 async function updateLink(env, id, b, action) {
   const rec = await getLink(env, id, true);
@@ -1001,6 +1043,7 @@ export default {
         out.rastreoClientes = { kv: !!kvOf(env), portal: !!appUrl(env) };
         out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY) };
         out.avisos = { kv: !!alrKv(env) };
+        out.enlaceCorto = { tinyurl: !!env.TINYURL_TOKEN };
         return json(req, env, out.ok ? 200 : 502, out);
       }
       if (!authorized) return json(req, env, 401, { ok: false, error: 'Clave de PERCONSUR inválida o ausente' });
@@ -1023,6 +1066,7 @@ export default {
           return json(req, env, 200, { ok: true, links, maxHours: maxHours(env) });
         }
         const { rec, reused } = await createLink(env, await readBody(req));
+        if (await ensureShort(env, rec, url.origin)) await putLink(env, rec);
         return json(req, env, reused ? 200 : 201, { ok: true, reused, link: internal(rec.id, rec) });
       }
       if (url.pathname === '/v1/avisos' || url.pathname.startsWith('/v1/avisos/')) return await alertsRoute(req, env, url);

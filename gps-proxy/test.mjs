@@ -259,6 +259,34 @@ try {
   ok(r.body.state === 'expired' && !r.body.position && !r.body.trip, 'después de 72 h el enlace vence solo');
   r = await call('/v1/enlaces', { e: { ...envT, TRACK_MAX_HOURS: '12' }, method: 'POST', body: { ...op1, opId: 'lg_op6' } });
   ok(r.body.link.expiresAt - r.body.link.createdAt === 12 * 3600 * 1000, 'TRACK_MAX_HOURS ajusta la vigencia');
+  /* Enlace corto propio (SHORT_BASE, dominio de PERCONSUR): contenedor + código al azar, sin TinyURL */
+  {
+    const realF = globalThis.fetch; let tinyCalls = 0;
+    globalThis.fetch = async (u, o) => { if (String(u.url || u).startsWith('https://api.tinyurl.com/')) { tinyCalls++; return new Response('{}', { status: 500 }); } return realF(u, o); };
+    try {
+      const envS = { ...envT, SHORT_BASE: 'https://perconsur.app/', TINYURL_TOKEN: 'tok' };
+      r = await call('/v1/enlaces', { e: envS, method: 'POST', body: { ...op1, imei: '865190071388888', opId: 'lg_s1' } });
+      const S1 = r.body.link, code = (S1.short || '').split('/').pop();
+      ok(/^https:\/\/perconsur\.app\/MSCU1234567-[a-hj-km-np-z2-9]{5}$/.test(S1.short) && tinyCalls === 0, 'enlace corto propio: perconsur.app/MSCU1234567-xxxxx (contenedor + 5 caracteres al azar; no se usa TinyURL): ' + S1.short);
+      let g = await worker.fetch(new Request('https://perconsur.app/' + code), envS);
+      ok(g.status === 302 && g.headers.get('Location') === '/r/' + S1.id, 'el enlace corto lleva al portal del cliente');
+      g = await worker.fetch(new Request('https://perconsur.app/' + code.toLowerCase()), envS);
+      ok(g.status === 302 && g.headers.get('Location') === '/r/' + S1.id, 'el enlace corto funciona aunque se escriba en minúsculas');
+      g = await worker.fetch(new Request('https://perconsur.app/MSCU1234567-zzzzz', { headers: { 'CF-Connecting-IP': '203.0.113.77' } }), envS);
+      ok(g.status === 404 && /text\/html/.test(g.headers.get('Content-Type') || ''), 'solo con el número de contenedor no se puede adivinar el enlace (404)');
+      r = await call('/v1/enlaces', { e: envS, method: 'POST', body: { ...op1, imei: '865190071388888', opId: 'lg_s1' } });
+      ok(r.body.reused && r.body.link.short === S1.short, 'compartir otra vez: mismo enlace corto');
+      r = await call('/v1/enlaces', { e: envS, method: 'POST', body: { ...op1, imei: '865190071388888', opId: 'lg_s2', container: '' } });
+      ok(/^https:\/\/perconsur\.app\/[a-hj-km-np-z2-9]{8}$/.test(r.body.link.short), 'sin número de contenedor: código al azar de 8 caracteres');
+      g = await worker.fetch(new Request('https://perconsur.app/'), envS);
+      ok(g.status === 302 && g.headers.get('Location') === 'https://www.perconsur.mx/', 'la raíz del dominio corto lleva a www.perconsur.mx');
+      r = await call('/salud', { e: envS });
+      ok(r.body.enlaceCorto.propio === 'https://perconsur.app', '/salud indica el dominio de los enlaces cortos');
+      g = await worker.fetch(new Request('https://perconsur-gps.ejemplo.workers.dev/'), envS);
+      ok(g.status !== 302, 'la raíz de la dirección del Worker sigue mostrando la salud');
+      ok(appUrl({ ALLOWED_ORIGIN: 'https://app.perconsur.app' }) === 'https://app.perconsur.app/' && appUrl({ ALLOWED_ORIGIN: 'https://app.perconsur.app,' + ORIGIN }) === 'https://app.perconsur.app/', 'APP_URL por omisión con dominio propio: la raíz del sitio (sin /PERCONSUR/)');
+    } finally { globalThis.fetch = realF; }
+  }
   /* Enlace corto con TinyURL (API simulada: alias de esta cuenta, de otra cuenta y fallas) */
   {
     const realF = globalThis.fetch, calls = [], aliases = new Map([['TGHU7654321', 'otra'], ['MSKU1111111', 'perconsur']]);

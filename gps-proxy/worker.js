@@ -22,6 +22,9 @@
  *   DATA_READ_KEY   Secret  clave de los dispositivos de consulta (solo reciben)
  *   ALERTS          KV      opcional; avisos (geocercas, vencimientos, suscripciones push). Si falta se usa TRACKING
  *   VAPID_SUBJECT   Texto   opcional; contacto para los servicios de push (por defecto la dirección de la app)
+ *   SHORT_BASE      Texto   opcional; dominio propio para enlaces cortos, p. ej. https://perconsur.app (dominio personalizado
+ *                           de este Worker). El enlace del cliente queda perconsur.app/MSCU1234567-k7q2x; tiene prioridad
+ *                           sobre TinyURL. La raíz de ese dominio lleva a www.perconsur.mx.
  *   TINYURL_TOKEN   Secret  opcional; token de la API de TinyURL: el enlace del cliente se acorta con el número de
  *                           contenedor como alias (tinyurl.com/MSCU1234567). Sin él se comparte el enlace normal.
  *   TINYURL_DOMAIN  Texto   opcional; dominio de TinyURL (por defecto tinyurl.com; uno propio si el plan lo incluye)
@@ -345,7 +348,8 @@ const maxHours = (env) => { const h = Number(env.TRACK_MAX_HOURS); return Number
 /* Dirección de la app (de ahí el portal carga el mapa y el diseño). Solo https y terminada en / */
 export function appUrl(env) {
   let u = String(env.APP_URL || '').trim();
-  if (!u) { const o = origins(env)[0]; u = o ? o + '/PERCONSUR/' : ''; }
+  /* Sin APP_URL: el primer sitio autorizado; en GitHub Pages sin dominio propio la app vive en /PERCONSUR/ */
+  if (!u) { const o = origins(env)[0]; u = o ? o + (/\.github\.io$/i.test(o) ? '/PERCONSUR/' : '/') : ''; }
   if (u && !u.endsWith('/')) u += '/';
   return /^https:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9._~%-]+)*\/$/.test(u) ? u : '';
 }
@@ -468,10 +472,35 @@ async function tiny(env, path, method, body) {
   } catch (e) { console.log('TinyURL', method, path, e.message); return { error: txt('No se pudo conectar con TinyURL: ' + (e.message || e), 200) }; }
 }
 const tinyDomain = (env) => (/^[a-z0-9.-]{3,60}$/i.test(String(env.TINYURL_DOMAIN || '')) ? String(env.TINYURL_DOMAIN).toLowerCase() : 'tinyurl.com');
+/* Enlace corto propio (SHORT_BASE): contenedor + 5 caracteres al azar, para que no se pueda adivinar con solo ver el
+   número pintado en el contenedor; sin contenedor, 8 caracteres al azar. Se guarda en KV (sl:código → enlace). */
+const SHORT_ABC = 'abcdefghjkmnpqrstuvwxyz23456789';
+const SHORT_RE = /^\/([A-Za-z]{4}\d{7}-[A-Za-z2-9]{5}|[A-Za-z2-9]{8})\/?$/;
+export const shortBase = (env) => { const b = String(env.SHORT_BASE || '').trim().replace(/\/+$/, '').toLowerCase(); return /^https:\/\/[a-z0-9.-]{3,80}$/.test(b) ? b : ''; };
+const randCode = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => SHORT_ABC[x % SHORT_ABC.length]).join('');
+const normCode = (c) => (/^[A-Za-z]{4}\d{7}-/.test(c) ? c.slice(0, 11).toUpperCase() + c.slice(11).toLowerCase() : c.toLowerCase());
+async function ownShort(env, rec, alias, base) {
+  const code = alias ? `${alias}-${randCode(5)}` : randCode(8);
+  const ttl = Math.max(60, Math.ceil((rec.expiresAt - Date.now()) / 1000) + TRACK_KEEP);
+  await needKv(env).put('sl:' + code, rec.id, { expirationTtl: ttl });
+  rec.short = `${base}/${code}`; rec.shortFor = alias; rec.shortError = ''; rec.updatedAt = Date.now();
+  return true;
+}
+/* GET /<código>: lleva al portal del enlace; un código inexistente cuenta como intento fallido */
+async function shortRoute(req, env, ip, code) {
+  let id = null;
+  try { id = await needKv(env).get('sl:' + normCode(code)); } catch (e) { /* sin KV */ }
+  if (id && TOKEN_RE.test(id)) return new Response(null, { status: 302, headers: { Location: '/r/' + id, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+  const lock = await registerFail(ip, env, Date.now(), { global: false, maxFails: LIMITS.TOKEN_FAIL_MAX });
+  if (lock) return limited(req, env, lock, `Demasiados intentos. Intenta de nuevo en ${waitText(lock)}.`);
+  return portalResponse(env, 'no-valido', 404);
+}
 export async function ensureShort(env, rec, origin) {
-  if (!env.TINYURL_TOKEN || rec.state !== 'active') return false;
+  const base = shortBase(env);
+  if ((!base && !env.TINYURL_TOKEN) || rec.state !== 'active') return false;
   const alias = (rec.container || '').split(' / ')[0] || '';
-  if (rec.short && (rec.shortFor || '') === alias) return false;
+  if (rec.short && (rec.shortFor || '') === alias && (!base || rec.short.startsWith(base + '/'))) return false;
+  if (base) return ownShort(env, rec, alias, base);
   const domain = tinyDomain(env), url = origin + '/r/' + rec.id, description = txt(`PERCONSUR rastreo ${rec.unit || ''} ${rec.container || ''}`, 100);
   let firstError = '';
   const pick = (r, a) => { if (r.error) { firstError = firstError || r.error; return ''; } const d = r.data; return d && d.tiny_url ? String(d.tiny_url) : a ? `https://${domain}/${a}` : ''; };
@@ -1029,6 +1058,10 @@ export default {
     const lockS = await lockedFor(ip, env);
     if (lockS) return limited(req, env, lockS, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lockS)}.`);
     /* Rastreo para clientes: rutas públicas, sin clave (el código del enlace es el permiso) */
+    /* Enlaces cortos propios y raíz del dominio corto (lleva al sitio web de PERCONSUR) */
+    const sc = req.method === 'GET' && SHORT_RE.exec(url.pathname);
+    if (sc) return shortRoute(req, env, ip, sc[1]);
+    if (req.method === 'GET' && url.pathname === '/' && shortBase(env) && url.origin === shortBase(env)) return new Response(null, { status: 302, headers: { Location: 'https://www.perconsur.mx/' } });
     const pub = req.method === 'GET' && /^\/(r|v1\/publico)\/([^/]*)\/?$/.exec(url.pathname);
     if (pub) return publicRoute(req, env, ip, pub[1], pub[2]);
     if (isData) { try { return await dataRoute(req, env, ip, url); } catch (e) { return json(req, env, 502, { ok: false, error: 'No se pudo guardar o leer la información compartida.' }); } }
@@ -1052,7 +1085,7 @@ export default {
         out.rastreoClientes = { kv: !!kvOf(env), portal: !!appUrl(env) };
         out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY) };
         out.avisos = { kv: !!alrKv(env) };
-        out.enlaceCorto = { tinyurl: !!env.TINYURL_TOKEN };
+        out.enlaceCorto = { propio: shortBase(env) || false, tinyurl: !!env.TINYURL_TOKEN };
         /* Con la clave (?key=) se prueba el token contra TinyURL (solo lectura: lista de enlaces) */
         if (authorized && env.TINYURL_TOKEN) { const t = await tiny(env, '/urls/available', 'GET', null); out.enlaceCorto.prueba = t.error || 'correcta'; }
         return json(req, env, out.ok ? 200 : 502, out);

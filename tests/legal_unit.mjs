@@ -17,7 +17,7 @@ ok(/Acceso/.test(priv) && /Rectificación/.test(priv) && /Cancelación/.test(pri
 ok(/identificación oficial/.test(priv) && /representante/.test(priv), 'requisitos de la solicitud (identificación y representante)');
 ok(/no usa estos datos para publicidad/.test(priv) && /no los vende/.test(priv), 'sin finalidades secundarias: ni publicidad ni venta');
 ok(/IOPGPS/.test(priv) && /Cloudflare/.test(priv) && /GitHub/.test(priv) && /OpenStreetMap/.test(priv) && /Esri/.test(priv) && /notificaciones/.test(priv), 'proveedores que reciben datos (GPS, Cloudflare, GitHub, mapas y notificaciones)');
-ok(/cliente/.test(priv) && /nombre y apellido del operador/.test(priv), 'qué ve el cliente en el enlace de rastreo (operador solo por nombre y apellido)');
+ok(/cliente/.test(priv) && /si el operador lo autorizó, su nombre y apellido/.test(priv), 'qué ve el cliente en el enlace de rastreo (operador solo por nombre y apellido, y solo si lo autorizó)');
 ok(/Secretaría Anticorrupción y Buen Gobierno/.test(priv), 'autoridad en materia de datos personales');
 ok(priv.includes(LEGAL_UPDATED) && terms.includes(LEGAL_UPDATED) && /^\d{1,2} de [a-z]+ de \d{4}$/.test(LEGAL_UPDATED), `fecha de actualización visible: ${LEGAL_UPDATED}`);
 // Coincidencia con la práctica real

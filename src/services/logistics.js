@@ -48,7 +48,9 @@ export function view(op, unit = null) {
   return {
     unit: u, operatorRec: o, trailerRec: t,
     eco: u ? u.eco : '', label: u ? u.label : s.unit || '—', placas: u ? u.placas : s.placas || '', companyShort: u ? u.companyShort : '',
-    operator: o ? o.name : s.operator || '', trailer: t ? t.placas : s.trailer || '', trailerType: t ? t.type || '' : s.trailerType || '', trailerDesc: t ? t.desc || '' : '',
+    operator: o ? o.name : s.operator || '',
+    /* Nombre que puede ver el cliente en el rastreo: vacío si el operador no lo autorizó (ficha del operador) */
+    operatorShared: o ? (o.trackHide ? '' : o.name) : s.operator || '', trailer: t ? t.placas : s.trailer || '', trailerType: t ? t.type || '' : s.trailerType || '', trailerDesc: t ? t.desc || '' : '',
   };
 }
 export const entryView = (e) => view(e.op, e.unit);

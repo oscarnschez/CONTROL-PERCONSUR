@@ -188,6 +188,8 @@ function openProfileForm(op, onSaved) {
       <label class="fld"><span class="fl">Tipo (opcional)</span><input class="in" name="licType" value="${esc(lic.type || '')}" placeholder="Ej. Federal tipo E" enterkeyhint="next"></label></div>
     <div class="row2"><label class="fld"><span class="fl">Expedición (opcional)</span><input class="in" type="date" name="licIssued" value="${esc(lic.issued || '')}"></label>
       <label class="fld" data-f="licExpires"><span class="fl">Vencimiento (opcional)</span><input class="in" type="date" name="licExpires" value="${esc(lic.expires || '')}"><span class="ferr"></span></label></div>
+    <h3 class="pk-h">Rastreo para clientes</h3>
+    <label class="sw-row"><span class="sw-tx">Mostrar su nombre al cliente<small>Solo si lo autorizó en su hoja de consentimiento de datos personales. Apagado: el cliente ve la unidad y las placas, sin el nombre del operador.</small></span><input type="checkbox" switch class="sw" name="trackShow"${r0.trackHide ? '' : ' checked'}></label>
     <p class="grp-note">La fecha de inicio de operación se edita en la configuración del balance.</p>
     <div class="form-foot"><button type="submit" class="btn-primary block lg">Guardar cambios</button></div>`;
   const sh = openSheet({ title: 'Editar operador', body: form, full: true, className: 'form-sheet' });
@@ -229,7 +231,7 @@ function openProfileForm(op, onSaved) {
     if (!name) return err('name', 'Escribe el nombre del operador.');
     if (el.licIssued.value && el.licExpires.value && el.licExpires.value < el.licIssued.value) return err('licExpires', 'El vencimiento no puede ser anterior a la expedición.');
     const cur = rec();
-    await saveCatalog('operators', { ...cur, name: nameCaseLocal(name), rfc: rfcClean(el.rfc.value), curp: curpClean(el.curp.value),
+    await saveCatalog('operators', { ...cur, name: nameCaseLocal(name), rfc: rfcClean(el.rfc.value), curp: curpClean(el.curp.value), trackHide: !el.trackShow.checked,
       license: { number: el.licNumber.value.trim().toUpperCase(), type: el.licType.value.trim(), issued: el.licIssued.value || '', expires: el.licExpires.value || '' } });
     sh.close(); toast('Datos del operador guardados'); onSaved && onSaved();
   });

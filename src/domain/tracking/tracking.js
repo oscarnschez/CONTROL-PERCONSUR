@@ -45,11 +45,11 @@ export function shortName(full) {
 export const containerOf = (op) => containersIn(op && op.reference).slice(0, 2).join(' / ');
 export const containerTypeOf = (op) => (op && tipoDesc(op.containerType) ? op.containerType : '');
 
-/* Datos que se envían al Worker al compartir: el operador solo con nombre y apellido, las placas de la unidad y del
+/* Datos que se envían al Worker al compartir: el operador solo con nombre y apellido (y solo si lo autorizó: view.operatorShared), las placas de la unidad y del
    remolque asignado y el contenedor; sin velocidad */
 export function linkPayload(op, view, imei, target) {
   return {
-    opId: op.id, imei: String(imei || ''), unit: view.label || '', plates: view.placas || '', operator: shortName(view.operator), trailerType: view.trailerType || '', trailer: view.trailer || '', status: op.status,
+    opId: op.id, imei: String(imei || ''), unit: view.label || '', plates: view.placas || '', operator: shortName(view.operatorShared ?? view.operator), trailerType: view.trailerType || '', trailer: view.trailer || '', status: op.status,
     container: containerOf(op), containerType: containerTypeOf(op),
     origin: op.origin || '', destination: op.destination || '', place: op.deliveryPlace || '', dest: destPoint(target),
   };

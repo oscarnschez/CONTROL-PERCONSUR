@@ -38,7 +38,7 @@ export const PRIVACY = [
     [
       'Programar y documentar los servicios: asignación de unidades, operadores y remolques, notas de entrega, control de contenedores llenos y vacíos, y facturación.',
       'Ubicar las unidades por GPS para la seguridad de la carga, del operador y de la unidad, y para la logística de los viajes. Se rastrea el equipo instalado en la unidad, no el teléfono de las personas.',
-      'Informar a cada cliente, mediante un enlace temporal, el estado y la ubicación del transporte de su servicio, con el número y las placas de la unidad, el remolque y el nombre y apellido del operador.',
+      'Informar a cada cliente, mediante un enlace temporal, el estado y la ubicación del transporte de su servicio, con el número y las placas de la unidad, el remolque y, si el operador lo autorizó, su nombre y apellido.',
       'Calcular y pagar comisiones, anticipos y liquidaciones de los operadores y emitir sus estados de cuenta.',
       'Controlar el mantenimiento, el combustible y la vigencia de documentos y licencias, y enviar avisos al personal autorizado (llegadas, salidas y vencimientos).',
       'Proteger la aplicación y la información: control de acceso, límite de intentos y respaldos.',

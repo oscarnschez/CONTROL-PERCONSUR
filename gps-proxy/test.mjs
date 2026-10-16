@@ -177,7 +177,7 @@ try {
   /* ===== Rastreo para clientes ===== */
   const kvT = memKV(), envT = { ...env, TRACKING: kvT };
   const WORKER_ORIGIN = 'https://perconsur-gps.ejemplo.workers.dev';
-  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', operator: 'Daniel Rivera', trailerType: 'chasis', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
+  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', operator: 'Daniel Rivera', trailerType: 'chasis', trailer: '788-wr-4', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
   __reset();
   r = await call('/v1/enlaces', { method: 'POST', body: op1 });
   ok(r.status === 503 && /KV «TRACKING»/.test(r.body.error), 'enlaces sin espacio KV: aviso claro (503)');
@@ -203,6 +203,7 @@ try {
   const pubTxt = JSON.stringify(r.body);
   ok(r.status === 200 && r.body.state === 'active' && r.body.trip.origin === 'Manzanillo' && r.body.trip.destination === 'Guadalajara' && r.body.trip.statusText === 'En camino al destino' && r.body.position && r.body.position.lat === 19.01007, 'portal: origen, destino, estado y ubicación de la unidad');
   ok(r.body.trip.operator === 'Daniel Rivera', 'portal: nombre y apellido del operador');
+  ok(r.body.trip.trailer === '788-WR-4' && r.body.trip.trailerType === 'chasis', 'portal: placas del remolque asignado (en mayúsculas) y su tipo');
   ok(!/speed|imei|865190071363660|U12|opId|placas|Antonio|Bautista/i.test(pubTxt), 'portal: sin velocidad, IMEI, número económico ni datos internos');
   ok(r.body.position.live === false && r.body.destination && r.body.destination.lat === 20.6597, 'portal: posición antigua marcada como no actual; destino en el mapa');
   ok(!('865190071300000' in r.body) && !pubTxt.includes('20.66'), 'portal: solo la unidad del enlace (no otras unidades)');
@@ -224,6 +225,9 @@ try {
     const pv = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
     ok(r.body.link.state === 'active' && r.body.link.status === st && pv.body.state === 'active' && pv.body.trip.status === st && pv.body.trip.statusText === text && pv.body.position, `estado ${st}: el enlace sigue activo y el portal muestra «${text}» con la ubicación`);
   }
+  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { trailer: 'JX-55-123', trailerType: 'chasis' } });
+  const pvT = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+  ok(r.body.link.trailer === 'JX-55-123' && pvT.body.trip.trailer === 'JX-55-123', 'cambio de remolque: el portal muestra las placas del nuevo remolque');
   r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, status: 'empty' } });
   ok(r.status === 200 && r.body.reused && r.body.link.id === L1.id && r.body.link.status === 'empty', 'compartir con la unidad Vacía: se permite (reutiliza el enlace)');
   r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'estado-viejo' } });

@@ -20,23 +20,25 @@ const TRAILER = { chasis: 'Chasis portacontenedor', jaula: 'Jaula', tolva: 'Tolv
 const TONE = { loading: 'violet', to_destination: 'blue', unloading: 'amber', empty_transit: 'teal', empty: 'gray', inactive: 'gray', delivered: 'ok' };
 let map = null, mapState = 'none', timer = 0, failures = 0, lastAt = 0, data = null;
 
-const head = () => root.querySelector('.pt-head') ? root.querySelector('.pt-head').outerHTML + '<div class="pt-band" aria-hidden="true"></div>' : '';
+/* «Rastreo de transporte» (también con un Worker que todavía diga «Rastreo de envío») */
+const head = () => { const h = root.querySelector('.pt-head'); if (!h) return ''; const tg = h.querySelector('.pt-tag'); if (tg) tg.textContent = 'Rastreo de transporte'; return h.outerHTML + '<div class="pt-band" aria-hidden="true"></div>'; };
+document.title = 'Rastreo de transporte · PERCONSUR';
 const fmtDate = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 function frame() {
   if (root.querySelector('[data-pt-card]')) return;
   root.innerHTML = `${head()}
     <section class="pt-card" data-pt-card aria-live="polite"></section>
-    <div class="pt-mapwrap" data-pt-mapwrap hidden><div class="pt-map" data-pt-map aria-label="Mapa con la ubicación de tu envío" role="region"></div><div class="pt-mapmsg" data-pt-mapmsg hidden></div></div>
+    <div class="pt-mapwrap" data-pt-mapwrap hidden><div class="pt-map" data-pt-map aria-label="Mapa con la ubicación del transporte" role="region"></div><div class="pt-mapmsg" data-pt-mapmsg hidden></div></div>
     <section class="pt-route" data-pt-route hidden></section>
-    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación y el estado de tu envío mientras el servicio está activo.</span></p><p class="pt-copy">PERCONSUR · Transporte de carga</p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
+    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación y el estado del transporte mientras el servicio está activo.</span></p><p class="pt-copy">PERCONSUR · Transporte de carga</p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
 }
 function routeHTML(t) {
   return `<div class="pt-rt"><span class="pt-rt-dot a" aria-hidden="true"></span><div><small>Origen</small><b>${esc(t.origin || '—')}</b></div></div>
     <div class="pt-rt"><span class="pt-rt-dot b" aria-hidden="true"></span><div><small>Destino</small><b>${esc(t.destination || '—')}</b>${t.place && t.place !== t.destination ? `<span>${esc(t.place)}</span>` : ''}</div></div>
-    ${t.operator || t.trailerType ? `<div class="pt-meta">
+    ${t.operator || t.trailerType || t.trailer ? `<div class="pt-meta">
       ${t.operator ? `<p class="pt-op">${icon.person}<span><small>Operador</small><b>${esc(t.operator)}</b></span></p>` : ''}
-      ${t.trailerType ? `<p class="pt-tt">${trailerIcon(t.trailerType)}<span><small>Remolque</small><b>${esc(TRAILER[t.trailerType] || '')}</b></span></p>` : ''}</div>` : ''}`;
+      ${t.trailer || t.trailerType ? `<p class="pt-tt">${trailerIcon(t.trailerType)}<span><small>Remolque</small><b${t.trailer ? ' class="mono"' : ''}>${esc(t.trailer || TRAILER[t.trailerType] || '')}</b>${t.trailer && TRAILER[t.trailerType] ? `<span>${esc(TRAILER[t.trailerType])}</span>` : ''}</span></p>` : ''}</div>` : ''}`;
 }
 function ageLine(p) {
   if (!p) return '';
@@ -51,19 +53,19 @@ function render(b) {
   root.classList.toggle('nomap', !(b && b.ok && b.state === 'active'));
   if (!b || !b.ok || b.state === 'unknown' || b.state === 'revoked' || b.state === 'expired') {
     card.className = 'pt-card gone';
-    card.innerHTML = `<span class="pt-ic">${icon.linkOff}</span><h1>Este enlace ya no está disponible</h1><p>${b && b.state === 'expired' ? 'El enlace de rastreo venció.' : 'El enlace no existe o fue desactivado.'} Si necesitas información de tu envío, comunícate con PERCONSUR.</p>`;
+    card.innerHTML = `<span class="pt-ic">${icon.linkOff}</span><h1>Este enlace ya no está disponible</h1><p>${b && b.state === 'expired' ? 'El enlace de rastreo venció.' : 'El enlace no existe o fue desactivado.'} Si necesitas información del transporte, comunícate con PERCONSUR.</p>`;
     mapwrap.hidden = true; route.hidden = true; destroyMap(); return;
   }
   const t = b.trip || {}, tone = TONE[t.status] || 'blue';
   route.hidden = false; route.innerHTML = routeHTML(t);
   if (b.state === 'finished') {
     card.className = 'pt-card done';
-    card.innerHTML = `<span class="pt-ic">${icon.check}</span><small class="pt-k">Estado del envío</small><h1>${esc(t.statusText || 'Entrega finalizada')}</h1><p>${b.closedAt ? `La entrega terminó el ${esc(fmtDate(b.closedAt).replace(/\.$/, ''))}. ` : ''}La ubicación ya no está disponible en este enlace.</p>`;
+    card.innerHTML = `<span class="pt-ic">${icon.check}</span><small class="pt-k">Estado del transporte</small><h1>${esc(t.statusText || 'Entrega finalizada')}</h1><p>${b.closedAt ? `La entrega terminó el ${esc(fmtDate(b.closedAt).replace(/\.$/, ''))}. ` : ''}La ubicación ya no está disponible en este enlace.</p>`;
     mapwrap.hidden = true; destroyMap(); return;
   }
   const p = b.position;
   card.className = `pt-card on t-${tone}`;
-  card.innerHTML = `<small class="pt-k">Estado del envío</small><h1><i class="pt-dot" aria-hidden="true"></i>${esc(t.statusText || 'En camino')}</h1>
+  card.innerHTML = `<small class="pt-k">Estado del transporte</small><h1><i class="pt-dot" aria-hidden="true"></i>${esc(t.statusText || 'En camino')}</h1>
     ${p ? ageLine(p) : `<span class="pt-age stale">${icon.alert}<span>${esc(b.warning || 'La ubicación todavía no está disponible. Reintentamos en unos segundos.')}</span></span>`}`;
   mapwrap.hidden = false;
   ensureMap().then(() => { if (map && data === b) map.update(b); });
@@ -101,7 +103,7 @@ async function load() {
     if (b.state === 'active') schedule((b.refreshIn || 30) * 1000);
   } catch (e) {
     failures += 1;
-    if (!data) { frame(); const card = root.querySelector('[data-pt-card]'); card.className = 'pt-card'; card.innerHTML = `<span class="pt-ic">${icon.cloudOff}</span><h1>No pudimos consultar tu envío</h1><p>Revisa tu conexión. Volveremos a intentarlo en unos segundos.</p>`; }
+    if (!data) { frame(); const card = root.querySelector('[data-pt-card]'); card.className = 'pt-card'; card.innerHTML = `<span class="pt-ic">${icon.cloudOff}</span><h1>No pudimos consultar el transporte</h1><p>Revisa tu conexión. Volveremos a intentarlo en unos segundos.</p>`; }
     schedule(Math.min(120000, 10000 * 2 ** Math.min(failures - 1, 4)));
   }
 }

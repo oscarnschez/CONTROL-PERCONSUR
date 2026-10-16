@@ -97,8 +97,9 @@ la identidad de PERCONSUR, el mapa con la ubicación de **su** unidad, el origen
 
 | El cliente ve | El cliente NO ve |
 |---|---|
-| ubicación actual de la unidad del viaje (o «última ubicación reportada» si no hay señal reciente) | velocidad, nombre completo del operador, número económico, placas, IMEI, referencia |
+| ubicación actual de la unidad del viaje (o «última ubicación reportada» si no hay señal reciente), en vista satelital por omisión | velocidad, nombre completo del operador, número económico, placas de la unidad, IMEI, referencia |
 | operador: **un nombre y un apellido** (p. ej. «Daniel Rivera») | |
+| remolque: **placas del remolque asignado** en ese momento y su tipo (un cambio de remolque en Logística se refleja) | |
 | origen, destino y lugar de entrega | otras unidades de la flota |
 | estado: «Cargando» · «En camino al destino» · «En el lugar de entrega» · «En ruta vacío» · «Vacío» · «Entrega finalizada» | nada después de cerrar la operación, revocar o vencer el enlace |
 

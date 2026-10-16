@@ -39,20 +39,22 @@ export function shortName(full) {
   return `${w[0]} ${sur.join(' ')}`;
 }
 
-/* Datos que se envían al Worker al compartir: el operador solo con nombre y apellido; sin placas ni velocidad */
+/* Datos que se envían al Worker al compartir: el operador solo con nombre y apellido y las placas del remolque asignado;
+   sin placas de la unidad ni velocidad */
 export function linkPayload(op, view, imei, target) {
   return {
-    opId: op.id, imei: String(imei || ''), unit: view.label || '', operator: shortName(view.operator), trailerType: view.trailerType || '', status: op.status,
+    opId: op.id, imei: String(imei || ''), unit: view.label || '', operator: shortName(view.operator), trailerType: view.trailerType || '', trailer: view.trailer || '', status: op.status,
     origin: op.origin || '', destination: op.destination || '', place: op.deliveryPlace || '', dest: destPoint(target),
   };
 }
 
 /*
  * Caducidad automática. links: enlaces del Worker; opOf(opId) → operación | null (borrada) | undefined (no está en este
- * dispositivo: no se toca); destOf(op) → punto de destino ya ubicado o null; operatorOf(op) → nombre completo del operador.
+ * dispositivo: no se toca); destOf(op) → punto de destino ya ubicado o null; operatorOf(op) → nombre completo del operador;
+ * trailerOf(op) → { placas, type } del remolque asignado (un cambio de remolque se refleja en el portal).
  * Devuelve [{ link, action: 'finish' | 'update', body }].
  */
-export function reconcile(links, opOf, destOf = () => null, operatorOf = null) {
+export function reconcile(links, opOf, destOf = () => null, operatorOf = null, trailerOf = null) {
   const out = [];
   for (const link of links) {
     if (link.state !== 'active') continue;
@@ -63,6 +65,8 @@ export function reconcile(links, opOf, destOf = () => null, operatorOf = null) {
     if (op.status !== link.status) body.status = op.status;
     if (!link.hasDest) { const d = destOf(op); if (d) body.dest = d; }
     if (operatorOf) { const n = shortName(operatorOf(op)); if (n !== (link.operator || '')) body.operator = n; }
+    /* Remolque: solo con un Worker que ya guarda las placas (el enlace trae «trailer»), así no se reenvía en cada revisión */
+    if (trailerOf && link.trailer !== undefined) { const t = trailerOf(op) || {}; if ((t.placas || '').toUpperCase() !== (link.trailer || '')) { body.trailer = t.placas || ''; body.trailerType = t.type || ''; } }
     if (Object.keys(body).length) out.push({ link, action: 'update', body });
   }
   return out;

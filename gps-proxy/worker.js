@@ -355,9 +355,9 @@ const point = (p) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) &&
   ? { lat: Math.round(+p.lat * 1e6) / 1e6, lng: Math.round(+p.lng * 1e6) / 1e6, approx: !!p.approx } : null);
 /* active | finished | revoked | expired (vencido por tiempo) */
 const stateOf = (rec, now = Date.now()) => (rec.state === 'active' && now > rec.expiresAt ? 'expired' : rec.state);
-const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
+const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', trailer: rec.trailer || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
 /* Vista interna (solo con PCS_KEY) */
-const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
+const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
 
 class TrackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 function needKv(env) {
@@ -403,6 +403,7 @@ function applyFields(rec, b) {
   if (b.imei !== undefined) { if (!/^\d{8,20}$/.test(String(b.imei))) throw new TrackError('IMEI inválido'); rec.imei = String(b.imei); }
   if (b.unit !== undefined) rec.unit = txt(b.unit, 40);
   if (b.trailerType !== undefined) rec.trailerType = TRAILERS.includes(b.trailerType) ? b.trailerType : '';
+  if (b.trailer !== undefined) rec.trailer = txt(b.trailer, 20).toUpperCase();   /* placas del remolque asignado */
   if (b.origin !== undefined) rec.origin = txt(b.origin);
   if (b.destination !== undefined) rec.destination = txt(b.destination);
   if (b.place !== undefined) rec.place = txt(b.place);
@@ -432,7 +433,7 @@ async function createLink(env, b) {
     const rec = await getLink(env, l.id, true);
     if (rec && rec.state === 'active') await putLink(env, close(rec, 'finished', 'replaced', now));
   }
-  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', operator: '', trailerType: '', origin: '', destination: '', place: '', dest: null,
+  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', operator: '', trailerType: '', trailer: '', origin: '', destination: '', place: '', dest: null,
     status: b.status, state: 'active', createdAt: now, updatedAt: now, expiresAt: now + maxHours(env) * 3600 * 1000, closedAt: null, closeReason: null }, b);
   await putLink(env, rec);
   return { rec, reused: false };
@@ -458,7 +459,7 @@ async function publicView(env, rec) {
   const now = Date.now(), st = stateOf(rec, now);
   const out = { ok: true, state: st, refreshIn: 30 };
   if (st === 'revoked' || st === 'expired') return out;
-  out.trip = { origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', operator: rec.operator || '',
+  out.trip = { origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', trailer: rec.trailer || '', operator: rec.operator || '',
     status: st === 'finished' ? 'delivered' : rec.status, statusText: st === 'finished' ? TRACK_DONE_TEXT : TRACK_STATUS_TEXT[rec.status] || TRACK_STATUS_TEXT.to_destination };
   if (st === 'finished') { out.closedAt = rec.closedAt; return out; }
   out.destination = rec.dest || null;
@@ -505,10 +506,10 @@ export function portalHTML(app, token) {
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Rastreo de tu envío · PERCONSUR</title>
-<meta name="description" content="Ubicación y estado de tu envío con PERCONSUR.">
+<title>Rastreo de transporte · PERCONSUR</title>
+<meta name="description" content="Ubicación y estado del transporte con PERCONSUR.">
 <meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer">
-<meta property="og:title" content="Rastreo de tu envío · PERCONSUR"><meta property="og:description" content="Consulta la ubicación y el estado de tu envío.">
+<meta property="og:title" content="Rastreo de transporte · PERCONSUR"><meta property="og:description" content="Consulta la ubicación y el estado del transporte.">
 <meta property="og:image" content="${a}assets/icons/icon-512.png">
 <meta name="color-scheme" content="light dark"><meta name="theme-color" content="#354FA3">
 <link rel="icon" href="${a}assets/icons/favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128 256x256"><link rel="apple-touch-icon" href="${a}assets/icons/apple-touch-icon.png">
@@ -516,9 +517,9 @@ export function portalHTML(app, token) {
 <link rel="stylesheet" href="${a}vendor/fonts/archivo.css"><link rel="stylesheet" href="${a}vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="${a}styles/tokens.css"><link rel="stylesheet" href="${a}styles/maps.css"><link rel="stylesheet" href="${a}styles/portal.css">
 </head><body class="pt-body">
 <main id="portal" class="pt nomap" data-api="/v1/publico/${t}" data-app="${a}" data-sat="1">
-<header class="pt-head"><img class="pt-mark" src="${a}assets/brand/perconsur-mark.png" alt=""><span class="pt-word">PERCONSUR</span><span class="pt-tag">Rastreo de envío</span></header>
+<header class="pt-head"><img class="pt-mark" src="${a}assets/brand/perconsur-mark.png" alt=""><span class="pt-word">PERCONSUR</span><span class="pt-tag">Rastreo de transporte</span></header>
 <div class="pt-band" aria-hidden="true"></div>
-<p class="pt-loading" role="status">Cargando la ubicación de tu envío…</p>
+<p class="pt-loading" role="status">Cargando la ubicación del transporte…</p>
 </main>
 <script type="module" src="${a}src/portal/main.js"></script>
 </body></html>`;

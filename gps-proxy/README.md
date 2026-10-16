@@ -151,6 +151,13 @@ Cómo elige el alias (una vez por enlace; al volver a compartir se reutiliza):
 | La operación no tiene número de contenedor en la Referencia | alias al azar de TinyURL |
 | TinyURL no responde o el token es inválido | se comparte el enlace normal del Worker; se reintenta al volver a compartir |
 
+**Si no aparece el enlace corto:**
+- La hoja «Rastreo para el cliente» muestra el motivo («token de TinyURL inválido o sin permiso», «TinyURL respondió 422: …»).
+- Abre `/salud?key=TU_PCS_KEY`: `"enlaceCorto": { "tinyurl": true, "prueba": "correcta" }` confirma que el Worker tiene el
+  secreto y que TinyURL acepta el token. Si `tinyurl` es `false`, el secreto no está guardado como `TINYURL_TOKEN`.
+- Cloudflare → Worker → **Logs** muestra cada respuesta de TinyURL que falló (sin el token).
+- La app debe ser la versión 1.40 o posterior (aparece al final de Ajustes; si no, cierra y vuelve a abrir la app).
+
 Cuando el alias de un contenedor se reutiliza para un viaje nuevo, el enlace corto del viaje anterior lleva al viaje
 nuevo. El enlace directo del viaje anterior (`…/r/…`) sigue mostrando «Entrega finalizada».
 

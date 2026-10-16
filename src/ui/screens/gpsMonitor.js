@@ -410,7 +410,8 @@ function openLinkSheet(r, link) {
   const sh = openSheet({ title: 'Rastreo para el cliente', className: 'trk-sheet', body: `
     <p class="sheet-lead">${esc(r.label)}${routeTxt(r) ? ' · ' + esc(routeTxt(r)) : ''}</p>
     <div class="trk-url"><span class="mono" data-url>${esc(url)}</span></div>
-    ${short ? `<p class="grp-note trk-short">Enlace corto de TinyURL${link.container && link.short.includes(link.container.split(' / ')[0]) ? ' con el número de contenedor' : ''}.</p>` : ''}
+    ${short ? `<p class="grp-note trk-short">Enlace corto de TinyURL${link.container && link.short.includes(link.container.split(' / ')[0]) ? ' con el número de contenedor' : ''}.</p>`
+    : link.shortError ? `<p class="grp-note warn-t trk-short-err">${icon.alert}<span>No se pudo crear el enlace corto (${esc(link.shortError)}). Se comparte el enlace normal; se reintenta al volver a compartir.</span></p>` : ''}
     <ul class="trk-what">
       <li>${icon.eye}<span>El cliente ve el número y las placas de la unidad, la ubicación actual, el origen, el destino, el estado del viaje, las placas del remolque y el contenedor (número y tipo).</span></li>
       <li>${icon.person}<span>${r.operator ? `Operador: <b>${esc(shortName(r.operator))}</b> (solo nombre y apellido).` : 'Sin operador asignado.'}</span></li>

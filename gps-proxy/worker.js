@@ -360,7 +360,7 @@ const point = (p) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) &&
 const stateOf = (rec, now = Date.now()) => (rec.state === 'active' && now > rec.expiresAt ? 'expired' : rec.state);
 const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', trailer: rec.trailer || '', plates: rec.plates || '', container: rec.container || '', containerType: rec.containerType || '', short: rec.short || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
 /* Vista interna (solo con PCS_KEY) */
-const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', plates: m.plates || '', container: m.container || '', containerType: m.containerType || '', short: m.short || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
+const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', trailer: m.trailer || '', plates: m.plates || '', container: m.container || '', containerType: m.containerType || '', short: m.short || '', ...(m.shortError ? { shortError: m.shortError } : {}), state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
 
 class TrackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 function needKv(env) {
@@ -454,13 +454,18 @@ async function createLink(env, b) {
  * volver a compartir.
  */
 const TINY_API = 'https://api.tinyurl.com';
+/* { data } si TinyURL respondió bien; { error } con su mensaje si no (se muestra en la app y en /salud) */
 async function tiny(env, path, method, body) {
   try {
-    const r = await fetch(TINY_API + path, { method, headers: { Authorization: 'Bearer ' + env.TINYURL_TOKEN, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
+    const r = await fetch(TINY_API + path, { method, headers: { Authorization: 'Bearer ' + String(env.TINYURL_TOKEN).trim(), 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'PERCONSUR-GPS/1.0' },
+      body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(8000) });
     let b = null; try { b = await r.json(); } catch (e) { /* */ }
-    return r.ok && b && b.data && !(b.errors || []).length ? b.data : null;
-  } catch (e) { return null; }
+    const errs = b && Array.isArray(b.errors) ? b.errors.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).filter(Boolean) : [];
+    if (r.ok && b && b.data && !errs.length) return { data: b.data };
+    const error = txt(`${r.status === 401 ? 'token de TinyURL inválido o sin permiso' : `TinyURL respondió ${r.status}`}${errs.length ? ': ' + errs.join('; ') : ''}`, 200);
+    console.log('TinyURL', method, path, error);
+    return { error };
+  } catch (e) { console.log('TinyURL', method, path, e.message); return { error: txt('No se pudo conectar con TinyURL: ' + (e.message || e), 200) }; }
 }
 const tinyDomain = (env) => (/^[a-z0-9.-]{3,60}$/i.test(String(env.TINYURL_DOMAIN || '')) ? String(env.TINYURL_DOMAIN).toLowerCase() : 'tinyurl.com');
 export async function ensureShort(env, rec, origin) {
@@ -468,7 +473,8 @@ export async function ensureShort(env, rec, origin) {
   const alias = (rec.container || '').split(' / ')[0] || '';
   if (rec.short && (rec.shortFor || '') === alias) return false;
   const domain = tinyDomain(env), url = origin + '/r/' + rec.id, description = txt(`PERCONSUR rastreo ${rec.unit || ''} ${rec.container || ''}`, 100);
-  const pick = (d, a) => (d && d.tiny_url ? String(d.tiny_url) : d && a ? `https://${domain}/${a}` : '');
+  let firstError = '';
+  const pick = (r, a) => { if (r.error) { firstError = firstError || r.error; return ''; } const d = r.data; return d && d.tiny_url ? String(d.tiny_url) : a ? `https://${domain}/${a}` : ''; };
   let short = '';
   if (alias) {
     short = pick(await tiny(env, '/create', 'POST', { url, domain, alias, description }), alias)
@@ -480,8 +486,11 @@ export async function ensureShort(env, rec, origin) {
   }
   if (!short) short = pick(await tiny(env, '/create', 'POST', { url, domain, description }), '');
   short = short.replace(/^http:/, 'https:');
-  if (!/^https:\/\/[^\s"'<>]{3,120}$/.test(short)) return false;   /* TinyURL no respondió: se reintenta al volver a compartir */
-  rec.short = short; rec.shortFor = alias; rec.updatedAt = Date.now();
+  if (!/^https:\/\/[^\s"'<>]{3,120}$/.test(short)) {   /* TinyURL no respondió: se reintenta al volver a compartir */
+    rec.shortError = firstError || 'TinyURL no devolvió el enlace corto';
+    return true;
+  }
+  rec.short = short; rec.shortFor = alias; rec.shortError = ''; rec.updatedAt = Date.now();
   return true;
 }
 async function updateLink(env, id, b, action) {
@@ -1044,6 +1053,8 @@ export default {
         out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY) };
         out.avisos = { kv: !!alrKv(env) };
         out.enlaceCorto = { tinyurl: !!env.TINYURL_TOKEN };
+        /* Con la clave (?key=) se prueba el token contra TinyURL (solo lectura: lista de enlaces) */
+        if (authorized && env.TINYURL_TOKEN) { const t = await tiny(env, '/urls/available', 'GET', null); out.enlaceCorto.prueba = t.error || 'correcta'; }
         return json(req, env, out.ok ? 200 : 502, out);
       }
       if (!authorized) return json(req, env, 401, { ok: false, error: 'Clave de PERCONSUR inválida o ausente' });

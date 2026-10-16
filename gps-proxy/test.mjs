@@ -270,6 +270,8 @@ try {
       calls.push({ path, method: o.method, auth: o.headers.Authorization, body: b });
       const res = (code, body) => new Response(JSON.stringify(body), { status: code, headers: { 'Content-Type': 'application/json' } });
       if (tinyDown) return res(500, { code: 5, data: [], errors: ['Server error'] });
+      if (o.headers.Authorization !== 'Bearer tok-secreto') return res(401, { code: 1, data: [], errors: ['Unauthorized'] });
+      if (path === '/urls/available' && o.method === 'GET') return res(200, { code: 0, data: [], errors: [] });
       if (path === '/create') {
         if (b.alias && aliases.has(b.alias)) return res(422, { code: 5, data: [], errors: ['Alias is not available.'] });
         const al = b.alias || 'zx' + (++n) + 'q8'; aliases.set(al, 'perconsur');
@@ -295,10 +297,16 @@ try {
       ok(/^https:\/\/tinyurl\.com\/zx\d+q8$/.test(r.body.link.short) && !calls.at(-1).body.alias, 'sin número de contenedor: enlace corto con alias al azar');
       tinyDown = true;
       r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t5', container: 'ABCU2222222' } });
-      ok(r.status === 201 && r.body.link.short === '' && r.body.link.state === 'active', 'TinyURL sin servicio: se comparte el enlace normal (sin error)');
+      ok(r.status === 201 && r.body.link.short === '' && r.body.link.state === 'active' && /TinyURL respondió 500: Server error/.test(r.body.link.shortError), 'TinyURL sin servicio: se comparte el enlace normal y la app recibe el motivo (' + r.body.link.shortError + ')');
       tinyDown = false;
       r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t5', container: 'ABCU2222222' } });
-      ok(r.body.reused && r.body.link.short === 'https://tinyurl.com/ABCU2222222', 'al volver a compartir se reintenta el enlace corto');
+      ok(r.body.reused && r.body.link.short === 'https://tinyurl.com/ABCU2222222' && !r.body.link.shortError, 'al volver a compartir se reintenta el enlace corto');
+      r = await call('/v1/enlaces', { e: { ...envT, TINYURL_TOKEN: 'malo' }, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t7', container: 'ABCU4444444' } });
+      ok(r.body.link.short === '' && /token de TinyURL inválido/.test(r.body.link.shortError), 'token inválido: el motivo llega a la app (' + r.body.link.shortError + ')');
+      r = await call('/salud', { e: { ...envT, TINYURL_TOKEN: 'malo' } });
+      ok(/token de TinyURL inválido/.test(r.body.enlaceCorto.prueba), '/salud con la clave prueba el token: ' + r.body.enlaceCorto.prueba);
+      r = await call('/salud', { e: { ...envT, TINYURL_TOKEN: ' tok-secreto\n' } });
+      ok(r.body.enlaceCorto.prueba === 'correcta', '/salud: token correcto (espacios al pegarlo se ignoran)');
       r = await call('/v1/enlaces', { e: envU, method: 'GET' });
       ok(r.body.links.find((l) => l.opId === 'lg_t5').short === 'https://tinyurl.com/ABCU2222222', 'listado interno: incluye el enlace corto');
       const before = calls.length;

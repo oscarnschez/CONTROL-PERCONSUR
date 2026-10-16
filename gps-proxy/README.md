@@ -129,6 +129,48 @@ se actualiza cada 30 s; si en ese momento no hay conexión, la app lo envía en 
 
 5. **Prueba:** abre `/salud`; debe decir `"rastreoClientes": { "kv": true, "portal": true }`.
 
+### Dominio propio (perconsur.app)
+
+El dominio está en la misma cuenta de Cloudflare, así que se conecta sin cambiar nameservers. Tres usos:
+
+| Dirección | Para qué | Dónde se configura |
+|---|---|---|
+| `https://rastreo.perconsur.app` | el Worker: portal del cliente (`/r/…`), GPS, información compartida y avisos | Worker → Settings → Domains & Routes |
+| `https://perconsur.app/MSCU1234567-k7q2x` | enlaces cortos propios (sustituyen a TinyURL) | Worker → Domains & Routes + variable `SHORT_BASE` |
+| `https://app.perconsur.app` | la app PERCONSUR (hoy en GitHub Pages) | DNS de Cloudflare + GitHub → Settings → Pages |
+
+**1. Rastreo (`rastreo.perconsur.app`):** Worker → Settings → **Domains & Routes** → Add → **Custom domain** →
+`rastreo.perconsur.app` → Add. Cloudflare crea el DNS y el certificado. Después, en cada dispositivo: Ajustes → Rastreo GPS
+y Ajustes → Información compartida → dirección `https://rastreo.perconsur.app` (misma clave). La dirección `workers.dev`
+sigue funcionando, así que los enlaces ya enviados no se rompen.
+
+**2. Enlaces cortos (`perconsur.app`):** en el mismo lugar agrega otro **Custom domain**: `perconsur.app`. Luego en
+Variables and Secrets → Add → Text → `SHORT_BASE` = `https://perconsur.app` → Deploy. Al compartir, el cliente recibe
+`https://perconsur.app/MSCU1234567-k7q2x`: el número de contenedor más 5 caracteres al azar. Los 5 caracteres impiden que
+alguien que vea el número pintado en el contenedor pueda abrir el rastreo; los códigos que no existen cuentan como intentos
+fallidos (20 en 15 min bloquean la conexión). Sin número de contenedor el código es de 8 caracteres al azar. La raíz
+`https://perconsur.app` lleva a www.perconsur.mx. Con `SHORT_BASE` ya no se usa TinyURL (puedes borrar `TINYURL_TOKEN`).
+
+**3. La app (`app.perconsur.app`):** el navegador guarda los datos de la app **por dirección**: en la dirección nueva
+la app empieza vacía en cada dispositivo. Hazlo en este orden:
+
+1. **Antes de cambiar nada**, en el dispositivo capturista (dirección actual): Ajustes → Información compartida →
+   «Publicar ahora», y Ajustes → **Exportar respaldo** (con fotos y documentos). Guarda el archivo.
+2. Cloudflare → perconsur.app → **DNS** → Add record: tipo `CNAME`, nombre `app`, destino `oscarnschez.github.io`,
+   **Proxy status: DNS only** (nube gris; GitHub necesita ver el registro para emitir el certificado).
+3. GitHub → repositorio PERCONSUR → Settings → **Pages** → Custom domain: `app.perconsur.app` → Save. Espera a que la
+   revisión de DNS quede en verde y marca **Enforce HTTPS**. Desde ese momento `oscarnschez.github.io/PERCONSUR/` redirige
+   a `https://app.perconsur.app`.
+4. **De inmediato**, en el Worker → Variables and Secrets: `ALLOWED_ORIGIN` = `https://app.perconsur.app,https://oscarnschez.github.io`
+   y `APP_URL` = `https://app.perconsur.app/` → Deploy. (El portal del cliente carga su mapa desde `APP_URL`.)
+5. En cada dispositivo abre `https://app.perconsur.app`, inicia sesión y configura Ajustes → Rastreo GPS e Información
+   compartida (dirección y clave):
+   - **Capturista:** al conectar aparece «Decide qué información queda» → **Recibir la de la nube en este dispositivo**.
+     Si faltara algo, Ajustes → Importar respaldo con el archivo del paso 1.
+   - **Consulta:** solo conecta; recibe la información sola.
+   - Avisos: vuelve a activarlos en cada teléfono (Ajustes → Avisos).
+6. En iPhone/Android borra el ícono anterior de la pantalla de inicio y agrega el nuevo desde `app.perconsur.app`.
+
 ### Enlace corto con TinyURL (opcional)
 
 Con una cuenta de TinyURL, el Worker acorta el enlace del cliente usando el **número de contenedor como alias**, el mismo

@@ -10,3 +10,8 @@ export const copyrightText = (year = new Date().getFullYear()) => `${copyrightSh
 
 /* Información legal (legal.html, textos en src/legal/texts.js): [pestaña, nombre, ícono] para Ajustes */
 export const LEGAL_LINKS = [['privacidad', 'Aviso de privacidad', 'shield'], ['condiciones', 'Condiciones de uso', 'file'], ['cookies', 'Cookies y almacenamiento', 'info']];
+
+/* Nombre e ícono de la aplicación (CONTROL PERCONSUR). El logotipo de la empresa PERCONSUR no cambia. */
+export const APP_NAME = 'CONTROL PERCONSUR';
+export const APP_ICON = './assets/brand/control-perconsur.png';
+export const appBadge = (cls = '') => `<span class="app-id ${cls}"><img src="${APP_ICON}" alt="" class="app-ic" width="44" height="44" decoding="async"><span class="app-nm">${APP_NAME}</span></span>`;

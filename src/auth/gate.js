@@ -19,7 +19,7 @@
 import { AUTH } from '../config/auth.js';
 import { icon } from '../ui/components/icons.js';
 import { APP_VERSION, APP_BUILD } from '../config/reference.js';
-import { copyrightText } from '../config/legal.js';
+import { copyrightText, appBadge } from '../config/legal.js';
 import { startBrandIntro } from '../ui/components/brandIntro.js';
 import { closeSplash } from '../ui/components/opening.js';
 
@@ -125,7 +125,7 @@ function showLogin() {
         <p><b id="lg-notice-t">ACCESO RESTRINGIDO</b>Esta herramienta digital es de uso único y exclusivo para personal autorizado por PERCONSUR. El acceso y uso por personas no autorizadas está prohibido.</p>
       </aside>
       <p class="login-terms">Al iniciar sesión aceptas las <a href="./legal.html#condiciones" target="_blank" rel="noopener">Condiciones de uso</a> y confirmas que conoces el <a href="./legal.html#privacidad" target="_blank" rel="noopener">Aviso de privacidad</a>.</p>
-      <p class="login-foot">Versión ${APP_VERSION} | ${APP_BUILD}<br><small class="legal-copy">${copyrightText()}</small></p>
+      <p class="login-foot">${appBadge('sm')}<br>Versión ${APP_VERSION} | ${APP_BUILD}<br><small class="legal-copy">${copyrightText()}</small></p>
     </div>`;
   document.body.appendChild(root);
   hideSplash();

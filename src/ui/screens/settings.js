@@ -10,7 +10,7 @@ import { isStandalone, offlineStatus, storageInfo, persistStorage, checkForUpdat
 import { shareFile, downloadBlob, isIOS } from '../../services/share.js';
 import { COMPANY_DEFAULTS, PUERTO_COMPANIES, EDITABLE_FIELDS } from '../../config/companies.js';
 import { APP_VERSION, APP_BUILD } from '../../config/reference.js';
-import { copyrightText, LEGAL_LINKS } from '../../config/legal.js';
+import { copyrightText, LEGAL_LINKS, appBadge } from '../../config/legal.js';
 import { esc, fmtSize } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
 import { openSheet, actionSheet, busy } from '../components/sheet.js';
@@ -56,7 +56,7 @@ export async function settingsScreen() {
     <section class="grp"><div class="grp-h"><h3>Información legal</h3></div><div class="grp-b list-actions" data-legal>
       ${LEGAL_LINKS.map(([h, t, ic]) => `<a class="row-btn" href="./legal.html#${h}" target="_blank" rel="noopener">${icon[ic]}<span>${t}</span>${icon.chev}</a>`).join('')}
     </div></section>
-    <footer class="about"><img src="./assets/brand/perconsur-mark.png" alt=""><b class="wordmark sm">PERCONSUR</b><span>Versión ${APP_VERSION}</span><small>Compilación ${APP_BUILD}</small><small class="legal-copy">${copyrightText()}</small></footer>
+    <footer class="about">${appBadge()}<img src="./assets/brand/perconsur-mark.png" alt=""><b class="wordmark sm">PERCONSUR</b><span>Versión ${APP_VERSION}</span><small>Compilación ${APP_BUILD}</small><small class="legal-copy">${copyrightText()}</small></footer>
   </div>`);
   const root = s.el;
   on(root, 'click', '[data-theme-v]', async (e, b) => { await setTheme(b.dataset.themeV); root.querySelectorAll('[data-theme-v]').forEach((x) => x.classList.toggle('on', x === b)); });

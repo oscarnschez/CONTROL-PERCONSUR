@@ -211,6 +211,13 @@ html.kb-open .actionbar{display:none}
 .steps-list .ic{display:inline;width:18px;height:18px;vertical-align:-3px;color:var(--tint)}
 .about{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0 8px;color:var(--muted);font-size:var(--fs-subhead)}
 .about img{width:36px;height:36px;object-fit:contain}
+/* Ícono y nombre de la app (CONTROL PERCONSUR), arriba del logotipo de la empresa */
+.app-id{display:inline-flex;align-items:center;gap:10px;margin-bottom:6px}
+.app-id .app-ic,.about .app-id .app-ic{width:44px;height:44px;border-radius:10px;object-fit:cover;box-shadow:var(--shadow-1)}
+.app-id .app-nm{font-weight:700;font-size:var(--fs-subhead);letter-spacing:.04em;color:var(--ink)}
+.app-id.sm{gap:8px;margin-bottom:4px}
+.app-id.sm .app-ic{width:28px;height:28px;border-radius:7px}
+.app-id.sm .app-nm{font-size:var(--fs-footnote);color:var(--ink-2)}
 .about span{font-weight:600;color:var(--ink-2)}
 .about small{font-size:var(--fs-footnote)}
 /* Aviso de derechos de autor (inicio de sesión y Ajustes) */

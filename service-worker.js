@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '09c203643e';
+const VERSION = 'f3c0019188';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -192,6 +192,7 @@ const PRECACHE = [
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/icon-maskable-512.png",
+  "./assets/brand/control-perconsur.png",
   "./assets/brand/oasc-logo.png",
   "./assets/brand/osc-logo.png",
   "./assets/brand/perconsur-mark.png",

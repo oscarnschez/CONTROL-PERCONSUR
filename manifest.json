@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "PERCONSUR",
-  "short_name": "PERCONSUR",
-  "description": "Notas de entrega y asignación de unidades de PERCONSUR.",
+  "name": "CONTROL PERCONSUR",
+  "short_name": "CONTROL",
+  "description": "CONTROL PERCONSUR: notas de entrega, logística, GPS y documentos de PERCONSUR.",
   "lang": "es-MX",
   "dir": "ltr",
   "start_url": "./#/",

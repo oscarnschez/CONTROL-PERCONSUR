@@ -2,13 +2,13 @@ import { board, homeEntries, countByStatus, filterEntries, groupByStatus, confli
 import { LOGISTICS_STATUSES, STATUS_ORDER, showOnHome, isWorking, statusLabel } from '../src/config/logistics.js';
 const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
 // Estados base: valores internos separados del texto
-ok(LOGISTICS_STATUSES.map((s) => s.key).join(',') === 'to_destination,empty,empty_transit,unloading,inactive', 'estados internos');
-ok(LOGISTICS_STATUSES.map((s) => s.label).join(' | ') === 'En ruta a destino | Vacío | En ruta vacío | Descargando | Inactiva', 'textos visibles');
-ok(STATUS_ORDER.map((s) => s.key).join(',') === 'to_destination,empty_transit,unloading,empty,inactive', 'orden de filtros y grupos');
+ok(LOGISTICS_STATUSES.map((s) => s.key).join(',') === 'loading,to_destination,empty,empty_transit,unloading,inactive', 'estados internos (nuevo: Cargando)');
+ok(LOGISTICS_STATUSES.map((s) => s.label).join(' | ') === 'Cargando | En ruta a destino | Vacío | En ruta vacío | Descargando | Inactiva', 'textos visibles');
+ok(STATUS_ORDER.map((s) => s.key).join(',') === 'loading,to_destination,empty_transit,unloading,empty,inactive', 'orden de filtros y grupos (Cargando primero)');
 ok(statusLabel('desconocido') === 'Inactiva', 'estado desconocido se muestra como Inactiva');
 // Regla de Inicio: estado ≠ Inactiva y estado ≠ Vacío
-ok(['to_destination', 'empty_transit', 'unloading'].every(showOnHome) && !showOnHome('inactive') && !showOnHome('empty'), 'regla de Inicio exacta');
-ok(['to_destination', 'empty_transit', 'unloading'].every(isWorking) && !isWorking('empty') && !isWorking('inactive'), 'estados que impiden una segunda operación');
+ok(['loading', 'to_destination', 'empty_transit', 'unloading'].every(showOnHome) && !showOnHome('inactive') && !showOnHome('empty'), 'regla de Inicio exacta (Cargando aparece en Inicio)');
+ok(['loading', 'to_destination', 'empty_transit', 'unloading'].every(isWorking) && !isWorking('empty') && !isWorking('inactive'), 'estados que impiden una segunda operación');
 const units = [{ id: 'v1', eco: '21', label: 'U21', placas: 'AB-1' }, { id: 'v2', eco: '5', label: 'U05', placas: 'CD-2' }, { id: 'v3', eco: '8', label: 'U08', placas: 'EF-3' }, { id: 'v4', eco: '9', label: 'U09', placas: 'GH-4' }];
 const ops = [
   { id: 'a', vehicleId: 'v1', operatorId: 'o1', trailerId: 't1', division: 'puerto', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', reference: 'MSCU1234567', deliveryPlace: 'CEDIS Guadalajara', updatedAt: 3 },

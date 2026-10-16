@@ -268,7 +268,7 @@ export async function gpsMonitorScreen() {
           ${link ? `<a class="btn-secondary" href="${esc(tracking.linkUrl(link))}" target="_blank" rel="noopener" data-open>${icon.eye}<span>Abrir enlace público</span></a>
           <button type="button" class="btn-ghost danger" data-revoke>${icon.linkOff}<span>Revocar enlace activo</span></button>` : ''}
         </div>
-        <p class="grp-note">El cliente ve solo la ubicación, el origen, el destino, el estado del viaje y el operador por nombre y apellido${r.operator ? ` (${esc(shortName(r.operator))})` : ''}; nunca la velocidad. El enlace deja de dar la ubicación al terminar la entrega o al revocarlo.</p>
+        <p class="grp-note">El cliente ve solo la ubicación, el origen, el destino, el estado del viaje y el operador por nombre y apellido${r.operator ? ` (${esc(shortName(r.operator))})` : ''}; nunca la velocidad. Cada cambio de estado se ve en el enlace al momento. Deja de dar la ubicación al cerrar la operación o al revocarlo.</p>
       </div></section>
       <section class="grp"><div class="grp-h"><h3>Acciones</h3></div><div class="mon-acts2">
         <a class="btn-secondary" href="#/operacion/logistica/u/${encodeURIComponent(r.vehicleId)}">${icon.truck}<span>Ver detalle logístico</span></a>
@@ -414,7 +414,8 @@ function openLinkSheet(r, link) {
       <li>${icon.eye}<span>El cliente ve la ubicación actual, el origen, el destino y el estado del viaje.</span></li>
       <li>${icon.person}<span>${r.operator ? `Operador: <b>${esc(shortName(r.operator))}</b> (solo nombre y apellido).` : 'Sin operador asignado.'}</span></li>
       <li>${icon.linkOff}<span>No ve la velocidad, las placas ni otras unidades.</span></li>
-      <li>${icon.clock}<span>Deja de mostrar la ubicación al terminar la entrega (En ruta vacío, Vacío o Inactiva), si lo revocas o a las ${maxH} h.</span></li>
+      <li>${icon.refresh}<span>Cada cambio de estado (Cargando, En ruta a destino, Descargando, En ruta vacío, Vacío…) se ve en el enlace al momento.</span></li>
+      <li>${icon.clock}<span>Deja de mostrar la ubicación al cerrar la operación, si lo revocas o a las ${maxH} h.</span></li>
     </ul>
     <div class="sheet-acts col">
       ${navigator.share ? `<button type="button" class="btn-primary" data-sh="share">${icon.share}<span>Compartir enlace</span></button>` : ''}

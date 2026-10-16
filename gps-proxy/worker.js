@@ -71,8 +71,10 @@
  *
  * Rastreo para clientes: el permiso se decide AQUÍ, no en el navegador. Cada enlace es un código al azar de 192 bits
  * ligado a una unidad (IMEI) y a una operación; la ruta pública solo entrega la posición de esa unidad mientras el
- * enlace está activo. Termina al finalizar la entrega (la app lo avisa al pasar la operación a En ruta vacío, Vacío o
- * Inactiva), al revocarlo, al crear un enlace de otra operación para la misma unidad o al cumplirse TRACK_MAX_HOURS.
+ * enlace está activo. Se comparte en cualquier estado de la operación (Cargando, En camino al destino, En el lugar de
+ * entrega, En ruta vacío, Vacío) y cada cambio de estado que avisa la app se ve en el portal. Termina al cerrar la
+ * operación (la app lo avisa), al revocarlo, al crear un enlace de otra operación para la misma unidad o al cumplirse
+ * TRACK_MAX_HOURS.
  * Códigos inexistentes cuentan como intentos fallidos (20 en 15 min bloquean la IP).
  */
 
@@ -323,8 +325,9 @@ async function detail(env, imei) {
 }
 
 /* ===== Rastreo para clientes ===== */
-/* Estados de Logística con rastreo y el texto que ve el cliente (el resto de estados finaliza el enlace) */
-export const TRACK_STATUS_TEXT = { to_destination: 'En camino al destino', unloading: 'En el lugar de entrega' };
+/* Estados de Logística y el texto que ve el cliente. El enlace se comparte en cualquiera de ellos y cada cambio de estado
+   se ve en el portal; un estado desconocido (app de una versión anterior) finaliza el enlace como antes */
+export const TRACK_STATUS_TEXT = { loading: 'Cargando', to_destination: 'En camino al destino', unloading: 'En el lugar de entrega', empty_transit: 'En ruta vacío', empty: 'Vacío', inactive: 'Unidad sin operación activa' };
 const TRACK_DONE_TEXT = 'Entrega finalizada';
 const TRACK_KEEP = 30 * 24 * 3600;   /* un enlace cerrado se conserva 30 días (para mostrar «Entrega finalizada»), después se borra */
 const LINK_MEM_TTL = 15 * 1000;      /* lectura del enlace guardada 15 s por instancia (menos lecturas de KV) */
@@ -418,7 +421,7 @@ async function createLink(env, b) {
   const opId = String(b.opId || '');
   if (!/^[\w-]{1,64}$/.test(opId)) throw new TrackError('Operación inválida');
   if (!/^\d{8,20}$/.test(String(b.imei || ''))) throw new TrackError('Esta unidad no tiene un GPS vinculado.');
-  if (!TRACK_STATUS_TEXT[b.status]) throw new TrackError('El rastreo para clientes solo está disponible con la unidad En ruta a destino o Descargando.', 409);
+  if (!TRACK_STATUS_TEXT[b.status]) throw new TrackError('Estado de Logística no reconocido: actualiza la app PERCONSUR.', 409);
   const now = Date.now(), list = await listLinks(env);
   const mine = list.filter((l) => l.opId === opId && stateOf(l, now) === 'active');
   for (const l of mine) {

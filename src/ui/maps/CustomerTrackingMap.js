@@ -14,8 +14,8 @@ export async function createCustomerTrackingMap(container, { views = false } = {
     update(data) {
       const p = data && data.state === 'active' ? data.position : null;
       const t = (data && data.trip) || {};
-      vmap.setVehicle(p ? { lat: p.lat, lng: p.lng, label: 'Transporte', tone: isStatus(t.status) ? statusOf(t.status).tone : 'blue', trailerType: t.trailerType || '', motion: p.live ? 'live' : 'nosignal',
-        title: p.live ? 'Transporte: ubicación actual' : 'Transporte: última ubicación reportada (sin señal reciente)' } : null);
+      vmap.setVehicle(p ? { lat: p.lat, lng: p.lng, label: t.unit || 'Transporte', tone: isStatus(t.status) ? statusOf(t.status).tone : 'blue', trailerType: t.trailerType || '', motion: p.live ? 'live' : 'nosignal',
+        title: `${t.unit ? 'Unidad ' + t.unit : 'Transporte'}: ${p.live ? 'ubicación actual' : 'última ubicación reportada (sin señal reciente)'}` } : null);
       const d = data && data.state === 'active' ? data.destination : null;
       vmap.setDestination(d ? { lat: d.lat, lng: d.lng, label: t.place || t.destination || 'Destino', approx: !!d.approx } : null);
     },

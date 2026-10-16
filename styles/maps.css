@@ -5,6 +5,7 @@
 /* Color del estado de Logística (mismos tonos que los chips) */
 .vm,.vm-cl{--vm-c:#354FA3;--vm-lbl:#FFFFFF;--vm-lbl-ink:#1A2233;--vm-ring:#FFFFFF}
 .vm[data-tone="teal"]{--vm-c:#1C8A9C}
+.vm[data-tone="violet"]{--vm-c:#7C5CC4}
 .vm[data-tone="amber"]{--vm-c:#D48A0C}
 .vm[data-tone="light"]{--vm-c:#8D96A8}
 .vm[data-tone="gray"]{--vm-c:#68718A}

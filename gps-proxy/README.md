@@ -49,7 +49,7 @@ Este archivo no contiene credenciales; se puede publicar sin riesgo.
 | `GET /v1/ubicacion?imei=865…` | `X-PCS-Key` | `{ ok, fetchedAt, stale, device: { …, address, signalTime } }` (dirección y estado; guardado 2 min) |
 | `GET /v1/enlaces` | `X-PCS-Key` | enlaces de rastreo para clientes (activos y de los últimos 30 días) |
 | `POST /v1/enlaces` | `X-PCS-Key` | crea (o reutiliza) el enlace de una operación de Logística |
-| `POST /v1/enlaces/:id` · `…/finalizar` · `…/revocar` | `X-PCS-Key` | actualiza el estado; finaliza (entrega terminada) o revoca |
+| `POST /v1/enlaces/:id` · `…/finalizar` · `…/revocar` | `X-PCS-Key` | actualiza el estado (el portal lo muestra al momento); finaliza (operación cerrada) o revoca |
 | `GET /r/:token` | **público** (solo con el enlace) | página del portal de rastreo para el cliente |
 | `GET /v1/publico/:token` | **público** (solo con el enlace) | origen, destino, estado y ubicación de esa unidad mientras el enlace está activo |
 | `GET /v1/datos/estado` | `X-PCS-Data` (capturista o consulta) | `{ ok, role: 'write'\|'read', published: { ver, device, at, size, files, enc, by } }` |
@@ -100,10 +100,14 @@ la identidad de PERCONSUR, el mapa con la ubicación de **su** unidad, el origen
 | ubicación actual de la unidad del viaje (o «última ubicación reportada» si no hay señal reciente) | velocidad, nombre completo del operador, número económico, placas, IMEI, referencia |
 | operador: **un nombre y un apellido** (p. ej. «Daniel Rivera») | |
 | origen, destino y lugar de entrega | otras unidades de la flota |
-| estado: «En camino al destino» · «En el lugar de entrega» · «Entrega finalizada» | nada después de terminar la entrega, revocar o vencer el enlace |
+| estado: «Cargando» · «En camino al destino» · «En el lugar de entrega» · «En ruta vacío» · «Vacío» · «Entrega finalizada» | nada después de cerrar la operación, revocar o vencer el enlace |
+
+El enlace se comparte con la unidad **en cualquier estado** de su operación (Cargando, En ruta a destino, Descargando, En
+ruta vacío, Vacío o Inactiva) y **cada cambio de estado** que se hace en Logística se ve en el portal del cliente (el portal
+se actualiza cada 30 s; si en ese momento no hay conexión, la app lo envía en cuanto la recupera).
 
 **Cuándo deja de dar la ubicación:**
-- al **terminar la entrega**: la app avisa al pasar la operación a En ruta vacío, Vacío o Inactiva (o al cerrarla); si en ese momento no hay conexión, lo avisa en cuanto la recupera;
+- al **cerrar la operación** en Logística (o eliminarla): la app lo avisa; si en ese momento no hay conexión, lo avisa en cuanto la recupera;
 - al **revocarlo** en el Centro de Monitoreo;
 - al crear un enlace para **otro viaje de la misma unidad** (el anterior se finaliza);
 - a las **72 h** como máximo (`TRACK_MAX_HOURS`), aunque nadie lo cierre.

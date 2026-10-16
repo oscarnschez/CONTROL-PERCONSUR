@@ -32,9 +32,9 @@ ok(ids({ text: 'u12' }) === 'a' && ids({ text: '60bn4j' }) === 'a' && ids({ text
 ok(sortRows(rows, (s) => ({ to_destination: 1, unloading: 3 }[s] || 9)).map((r) => r.id).join(',') === 'a,b,d,c', 'orden: en operación primero, luego detenidas y sin señal');
 
 /* Rastreo para clientes */
-ok(isTrackable('to_destination') && isTrackable('unloading') && !isTrackable('empty_transit') && !isTrackable('empty') && !isTrackable('inactive') && !isTrackable('x'), 'se comparte solo En ruta a destino o Descargando');
+ok(['loading', 'to_destination', 'unloading', 'empty_transit', 'empty', 'inactive'].every(isTrackable) && !isTrackable('x'), 'se comparte en cualquier estado (Cargando, En ruta a destino, Descargando, En ruta vacío, Vacío, Inactiva)');
 const op = { id: 'lg_1', vehicleId: 'v1', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', deliveryPlace: 'CEDIS', operatorId: 'o1' };
-ok(shareBlock(op, '865190071363660') === '' && /operación activa/.test(shareBlock({ ...op, closedAt: now }, '1')) && /En ruta a destino o Descargando/.test(shareBlock({ ...op, status: 'empty' }, '1')) && /GPS vinculado/.test(shareBlock(op, '')), 'motivos para no compartir');
+ok(shareBlock(op, '865190071363660') === '' && /operación activa/.test(shareBlock({ ...op, closedAt: now }, '1')) && shareBlock({ ...op, status: 'empty' }, '1') === '' && shareBlock({ ...op, status: 'loading' }, '1') === '' && /GPS vinculado/.test(shareBlock(op, '')), 'motivos para no compartir (sin operación o sin GPS; cualquier estado se puede compartir)');
 const pay = linkPayload(op, { label: 'U12', trailerType: 'chasis', operator: 'Daniel Rivera', placas: '60-BN-4J' }, '865190071363660', { loc: { lat: 20.66, lng: -103.35, precision: 'city' } });
 ok(pay.opId === 'lg_1' && pay.place === 'CEDIS' && pay.dest.approx === true && pay.operator === 'Daniel Rivera' && !JSON.stringify(pay).includes('Antonio') && !JSON.stringify(pay).includes('60-BN-4J'), 'al compartir: operador solo con nombre y apellido, sin placas; destino aproximado marcado');
 ok(shortName('Daniel Antonio Rivera Bautista') === 'Daniel Rivera' && shortName('José Castañeda Villalobos') === 'José Castañeda' && shortName('Juan García') === 'Juan García' && shortName('  Pedro  ') === 'Pedro' && shortName('') === '', 'nombre del operador para el cliente: un nombre y el apellido paterno');
@@ -45,7 +45,7 @@ const acts = reconcile([L({ opId: 'a', operator: 'Daniel Rivera' }), L({ opId: '
   (id) => ({ a: { status: 'to_destination', op: 'Daniel Antonio Rivera Bautista' }, b: { status: 'empty_transit' }, c: { status: 'inactive', closedAt: now }, d: null, e: { status: 'unloading', op: 'Daniel Antonio Rivera Bautista' }, g: { status: 'empty' }, h: { status: 'to_destination', op: 'José Castañeda Villalobos' } }[id]),
   () => ({ lat: 20, lng: -103, approx: false }), (op) => op.op || '');
 const by = Object.fromEntries(acts.map((a) => [a.link.opId, a]));
-ok(!by.a && by.b.action === 'finish' && by.b.body.reason === 'delivered' && by.c.action === 'finish' && by.c.body.reason === 'closed' && by.d.action === 'finish', 'caducidad: al terminar la entrega, cerrar o borrar la operación el enlace se finaliza');
+ok(!by.a && by.b.action === 'update' && by.b.body.status === 'empty_transit' && by.c.action === 'finish' && by.c.body.reason === 'closed' && by.d.action === 'finish', 'En ruta vacío: el enlace sigue activo y recibe el estado; al cerrar o borrar la operación se finaliza');
 ok(by.e.action === 'update' && by.e.body.status === 'unloading' && by.e.body.dest.lat === 20 && !by.e.body.operator && !by.f && !by.g, 'cambio de estado y destino recién ubicado se envían; operaciones de otro dispositivo y enlaces cerrados no se tocan');
 ok(by.h.action === 'update' && by.h.body.operator === 'José Castañeda' && !by.a, 'cambio de operador: el cliente ve al nuevo operador');
 

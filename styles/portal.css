@@ -18,6 +18,9 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 /* Estado del envío */
 .pt-card{--pt-c:#354FA3;display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-1)}
 .pt-card.t-amber{--pt-c:#D48A0C}
+.pt-card.t-violet{--pt-c:#7C5CC4}
+.pt-card.t-teal{--pt-c:#1C8A9C}
+.pt-card.t-gray{--pt-c:#68718A}
 .pt-card.t-ok,.pt-card.done{--pt-c:var(--ok)}
 .pt-card h1{display:flex;align-items:center;gap:10px;margin:0;font-size:var(--fs-title3);line-height:1.2;font-weight:800}
 .pt-card p{margin:0;color:var(--ink-2);font-size:var(--fs-subhead)}

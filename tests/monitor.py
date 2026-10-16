@@ -2,7 +2,8 @@
 (tests/worker_local.mjs: IOPGPS simulado y KV en memoria) y mapas MapLibre. Los mosaicos del mapa se simulan.
 Monitor: indicadores, marcadores por tipo de remolque, filtros, buscador, detalle, centrar, toda la flota, movimiento en
 vivo sin recargar, sin señal, estado de Logística independiente del GPS, panel inferior en iPhone y tarjeta en computadora.
-Portal: compartir, abrir el enlace, sin velocidad ni operador, actualización, revocar y caducidad al terminar la entrega.
+Portal: compartir, abrir el enlace, sin velocidad ni operador, actualización, revocar, cada cambio de estado de la app en el
+portal (Cargando, En ruta vacío, Descargando…; se comparte en cualquier estado) y fin del enlace al cerrar la operación.
 PCS_TEST_USER/PCS_TEST_PASS"""
 import subprocess, time, sys, os, json, urllib.request, mimetypes, re
 from playwright.sync_api import sync_playwright
@@ -201,21 +202,36 @@ try:
     t=cp.locator('#portal').inner_text()
     ok('ya no está disponible' in t and cp.locator('.pt-map .vm').count()==0 and 'Manzanillo' not in t,'revocar: el portal deja de mostrar la ubicación y los datos del viaje')
     ok('Revocar enlace activo' not in pg.locator('[data-pv-detail]').inner_text(),'monitor: sin enlace activo tras revocar')
-    # Caducidad automática al terminar la entrega
+    # Rastreo en cualquier estado: cada cambio de estado en la app se ve en el portal del cliente
     pg.locator('[data-share]').click(); pg.wait_for_timeout(1500); url2=pg.locator('.trk-sheet [data-url]').inner_text().strip(); pg.keyboard.press('Escape'); pg.wait_for_timeout(400)
     ok(url2!=url,'un enlace nuevo tiene otro código')
     cp.goto(url2); cp.wait_for_timeout(3500); ok('En camino al destino' in cp.locator('#portal').inner_text(),'nuevo enlace activo')
-    pg.locator('[data-status]').click(); pg.wait_for_timeout(500); pg.locator('[data-set="empty_transit"]').click(); pg.wait_for_timeout(3000)
-    cp.evaluate("window.__pcsPortal.reload()"); cp.wait_for_timeout(1500)
-    t=cp.locator('#portal').inner_text()
-    ok('Entrega finalizada' in t and cp.locator('.pt-map .vm').count()==0 and cp.locator('[data-pt-mapwrap]').is_hidden(),'al terminar la entrega (En ruta vacío) el enlace se finaliza solo y deja de dar la ubicación')
-    shot(cp,'05_portal_finalizado')
-    ok('Ver detalle logístico' in pg.locator('[data-pv-detail]').inner_text() and 'En ruta vacío' in pg.locator('[data-pv-detail]').inner_text(),'el monitor refleja el nuevo estado al momento')
+    def set_status(k):
+        pg.locator('[data-pv-detail] [data-status]').click(); pg.wait_for_timeout(500); pg.locator(f'[data-set="{k}"]').click(); pg.wait_for_timeout(2500)
+        cp.evaluate("window.__pcsPortal.reload()"); cp.wait_for_timeout(1500); return cp.locator('#portal').inner_text()
+    t=set_status('loading')
+    ok('Cargando' in t and cp.locator('.pt-card.t-violet').count()==1 and cp.locator('.pt-map .vm').count()==1,'nuevo estado «Cargando»: el portal lo muestra al momento, con la ubicación')
+    shot(cp,'05_portal_cargando')
+    t=set_status('empty_transit')
+    ok('En ruta vacío' in t and 'Entrega finalizada' not in t and cp.locator('.pt-map .vm').count()==1 and not cp.locator('[data-pt-mapwrap]').is_hidden(),'En ruta vacío: el enlace sigue activo; el portal muestra el estado y la ubicación')
+    ok('En ruta vacío' in pg.locator('[data-pv-detail]').inner_text() and not pg.locator('[data-pv-detail] [data-share]').is_disabled(),'el monitor refleja el nuevo estado y permite compartir con la unidad En ruta vacío')
+    pg.locator('[data-pv-detail] [data-share]').click(); pg.wait_for_timeout(1200); url3=pg.locator('.trk-sheet [data-url]').inner_text().strip(); pg.keyboard.press('Escape'); pg.wait_for_timeout(400)
+    ok(url3==url2,'compartir otra vez en En ruta vacío entrega el mismo enlace')
+    t=set_status('unloading'); ok('En el lugar de entrega' in t,'Descargando → «En el lugar de entrega» en el portal')
+    t=set_status('to_destination'); ok('En camino al destino' in t,'de vuelta a En ruta a destino → «En camino al destino»')
+    ok('Ver detalle logístico' in pg.locator('[data-pv-detail]').inner_text() and 'En ruta a destino' in pg.locator('[data-pv-detail]').inner_text(),'el monitor refleja el nuevo estado al momento')
     pg.locator('[data-pv-detail] a:has-text("Ver detalle logístico")').click(); pg.wait_for_timeout(900)
     ok('/operacion/logistica/u/' in pg.url and pg.locator('.mon-map').count()==0,'«Ver detalle logístico» abre Logística; al salir se libera el mapa')
     ok(pg.locator('a:has-text("Ver en Monitoreo GPS")').count()==1,'detalle logístico: acceso «Ver en Monitoreo GPS»')
     pg.locator('a:has-text("Ver en Monitoreo GPS")').click(); pg.wait_for_timeout(3500)
     ok(pg.evaluate(f"{FLEET}.selected()")==ids['u12'],'«Ver en Monitoreo GPS» abre el monitor con la unidad elegida')
+    # Cerrar la operación: el enlace se finaliza y deja de dar la ubicación
+    pg.locator('[data-pv-detail] [data-status]').click(); pg.wait_for_timeout(500); pg.locator('[data-set="inactive"]').click(); pg.wait_for_timeout(600)
+    pg.locator('.asheet .as-btn',has_text='Cerrar operación').click(); pg.wait_for_timeout(3000)
+    cp.evaluate("window.__pcsPortal.reload()"); cp.wait_for_timeout(1500)
+    t=cp.locator('#portal').inner_text()
+    ok('Entrega finalizada' in t and cp.locator('.pt-map .vm').count()==0 and cp.locator('[data-pt-mapwrap]').is_hidden(),'al cerrar la operación el enlace se finaliza solo y deja de dar la ubicación')
+    shot(cp,'05b_portal_finalizado')
     # Tema oscuro
     pg.evaluate("async()=>{const t=await import('./src/services/theme.js'); await t.setTheme('dark');}"); pg.wait_for_timeout(1200)
     ok(pg.evaluate(f"{FLEET}.map.getStyle().name")=='PERCONSUR oscuro','modo oscuro: el mapa cambia a su estilo oscuro sin recargar')

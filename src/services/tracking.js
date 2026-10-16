@@ -3,10 +3,10 @@
  * El permiso vive en el backend: el Worker solo entrega a un enlace la ubicación de SU unidad mientras está activo,
  * con el operador solo por nombre y apellido y sin velocidad. Aquí la app crea, revoca y finaliza enlaces y mantiene la
  * caducidad automática:
- *   - Al cambiar Logística (en esta pestaña o en otra), si una operación con enlace activo pasa a En ruta vacío, Vacío
- *     o Inactiva, o se cierra, el enlace se finaliza (la entrega terminó). Un cambio de estado con rastreo se envía al
- *     enlace para que el cliente vea el estado al día; el destino se agrega en cuanto queda ubicado en el mapa y un
- *     cambio de operador también se refleja.
+ *   - El enlace se comparte en cualquier estado de una operación abierta. Al cambiar Logística (en esta pestaña o en
+ *     otra), cada cambio de estado (Cargando, En ruta a destino, Descargando, En ruta vacío, Vacío, Inactiva) se envía
+ *     al enlace para que el cliente vea el estado al día; el destino se agrega en cuanto queda ubicado en el mapa y un
+ *     cambio de operador también se refleja. Si la operación se cierra o se elimina, el enlace se finaliza.
  *   - Sin conexión, el aviso queda pendiente en este dispositivo (ajuste trackQueue, fuera de los respaldos) y se
  *     envía al recuperar la conexión o en la siguiente consulta.
  *   - Red de seguridad en el Worker: un enlace vence solo a las 72 h y un viaje nuevo de la misma unidad finaliza el

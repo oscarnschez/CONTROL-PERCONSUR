@@ -4,7 +4,8 @@
  * mapa (MapLibre) y el diseño se cargan desde la app. Los datos llegan de /v1/publico/:token: el backend decide qué
  * ve el cliente (ubicación de SU unidad, origen, destino, estado y el operador solo por nombre y apellido; nunca velocidad
  * ni otras unidades).
- * Se actualiza solo cada 30 s con la página visible; al terminar la entrega, al revocar o al vencer el enlace deja de
+ * Se actualiza solo cada 30 s con la página visible (el estado cambia en cuanto PERCONSUR lo actualiza en Logística:
+ * Cargando, En camino al destino, En el lugar de entrega, En ruta vacío, Vacío…); al cerrar la operación, al revocar o al vencer el enlace deja de
  * mostrar la ubicación. Una posición sin señal reciente se indica como «última ubicación reportada», no como actual.
  */
 import { createCustomerTrackingMap } from '../ui/maps/CustomerTrackingMap.js';
@@ -16,7 +17,7 @@ import { copyrightText } from '../config/legal.js';
 const root = document.getElementById('portal');
 const API = root ? root.dataset.api : '';
 const TRAILER = { chasis: 'Chasis portacontenedor', jaula: 'Jaula', tolva: 'Tolva' };
-const TONE = { to_destination: 'blue', unloading: 'amber', delivered: 'ok' };
+const TONE = { loading: 'violet', to_destination: 'blue', unloading: 'amber', empty_transit: 'teal', empty: 'gray', inactive: 'gray', delivered: 'ok' };
 let map = null, mapState = 'none', timer = 0, failures = 0, lastAt = 0, data = null;
 
 const head = () => root.querySelector('.pt-head') ? root.querySelector('.pt-head').outerHTML + '<div class="pt-band" aria-hidden="true"></div>' : '';
@@ -28,7 +29,7 @@ function frame() {
     <section class="pt-card" data-pt-card aria-live="polite"></section>
     <div class="pt-mapwrap" data-pt-mapwrap hidden><div class="pt-map" data-pt-map aria-label="Mapa con la ubicación de tu envío" role="region"></div><div class="pt-mapmsg" data-pt-mapmsg hidden></div></div>
     <section class="pt-route" data-pt-route hidden></section>
-    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación de tu envío solo mientras la entrega está en curso.</span></p><p class="pt-copy">PERCONSUR · Transporte de carga</p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
+    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación y el estado de tu envío mientras el servicio está activo.</span></p><p class="pt-copy">PERCONSUR · Transporte de carga</p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
 }
 function routeHTML(t) {
   return `<div class="pt-rt"><span class="pt-rt-dot a" aria-hidden="true"></span><div><small>Origen</small><b>${esc(t.origin || '—')}</b></div></div>

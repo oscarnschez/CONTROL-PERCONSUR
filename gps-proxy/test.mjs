@@ -186,8 +186,8 @@ try {
   r = await call('/v1/enlaces', { e: envT, method: 'OPTIONS', key: null });
   ok(r.status === 204 && /POST/.test(r.headers.get('Access-Control-Allow-Methods')) && /Content-Type/.test(r.headers.get('Access-Control-Allow-Headers')), 'preflight CORS permite POST con JSON');
   r = await call('/v1/posiciones', { e: envT, method: 'POST', body: {} }); ok(r.status === 405, 'POST fuera de /v1/enlaces → 405');
-  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, status: 'empty' } });
-  ok(r.status === 409 && /En ruta a destino o Descargando/.test(r.body.error), 'solo se comparte en En ruta a destino o Descargando');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, status: 'otro' } });
+  ok(r.status === 409 && /no reconocido/.test(r.body.error), 'estado de Logística desconocido: no se crea el enlace');
   r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, imei: '' } }); ok(r.status === 400 && /GPS vinculado/.test(r.body.error), 'unidad sin GPS: no se crea enlace');
   r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, origin: 'Manzanillo\u0000<b>x</b>' + 'y'.repeat(300) } });
   const L1 = r.body.link;
@@ -218,8 +218,16 @@ try {
   r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'unloading' } });
   r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
   ok(r.body.trip.statusText === 'En el lugar de entrega', 'estado Descargando → «En el lugar de entrega»');
-  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'empty_transit' } });
-  ok(r.body.link.state === 'finished', 'al pasar a En ruta vacío el enlace se finaliza');
+  /* El enlace sigue activo en cualquier estado y el portal muestra cada cambio */
+  for (const [st, text] of [['empty_transit', 'En ruta vacío'], ['empty', 'Vacío'], ['loading', 'Cargando'], ['to_destination', 'En camino al destino'], ['inactive', 'Unidad sin operación activa']]) {
+    r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: st } });
+    const pv = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+    ok(r.body.link.state === 'active' && r.body.link.status === st && pv.body.state === 'active' && pv.body.trip.status === st && pv.body.trip.statusText === text && pv.body.position, `estado ${st}: el enlace sigue activo y el portal muestra «${text}» con la ubicación`);
+  }
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, status: 'empty' } });
+  ok(r.status === 200 && r.body.reused && r.body.link.id === L1.id && r.body.link.status === 'empty', 'compartir con la unidad Vacía: se permite (reutiliza el enlace)');
+  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'estado-viejo' } });
+  ok(r.body.link.state === 'finished', 'estado desconocido (app anterior): el enlace se finaliza como antes');
   r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
   ok(r.status === 200 && r.body.state === 'finished' && r.body.trip.statusText === 'Entrega finalizada' && !r.body.position && !r.body.destination, 'entrega finalizada: el enlace deja de dar la ubicación');
   r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'to_destination' } });

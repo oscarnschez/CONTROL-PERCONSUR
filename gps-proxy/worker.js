@@ -46,9 +46,9 @@
  *   POST /v1/avisos/suscripcion | baja | prueba   notificaciones push de un dispositivo
  *   Públicos (sin clave; solo con el enlace):
  *   GET /r/:token              página del portal de rastreo (identidad PERCONSUR; el mapa y el diseño vienen de APP_URL)
- *   GET /v1/publico/:token     datos del portal: origen, destino, estado y ubicación actual de ESA unidad mientras el
- *                              enlace está activo, y el operador solo por nombre y apellido. Nunca velocidad, IMEI,
- *                              placas ni otras unidades.
+ *   GET /v1/publico/:token     datos del portal: número de unidad, origen, destino, estado y ubicación actual de ESA
+ *                              unidad mientras el enlace está activo, placas del remolque y el operador solo por nombre
+ *                              y apellido. Nunca velocidad, IMEI, placas de la unidad ni otras unidades.
  *
  * API de IOPGPS utilizada (documentación pública de terceros; confirmar con el proveedor):
  *   POST /api/auth  { appid, time, signature = md5(md5(secreto) + time) } → { accessToken, expiresIn }
@@ -459,7 +459,7 @@ async function publicView(env, rec) {
   const now = Date.now(), st = stateOf(rec, now);
   const out = { ok: true, state: st, refreshIn: 30 };
   if (st === 'revoked' || st === 'expired') return out;
-  out.trip = { origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', trailer: rec.trailer || '', operator: rec.operator || '',
+  out.trip = { unit: rec.unit || '', origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', trailer: rec.trailer || '', operator: rec.operator || '',
     status: st === 'finished' ? 'delivered' : rec.status, statusText: st === 'finished' ? TRACK_DONE_TEXT : TRACK_STATUS_TEXT[rec.status] || TRACK_STATUS_TEXT.to_destination };
   if (st === 'finished') { out.closedAt = rec.closedAt; return out; }
   out.destination = rec.dest || null;

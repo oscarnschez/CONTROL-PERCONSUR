@@ -19,7 +19,7 @@ import { targetOf, onTargetsChange } from '../../services/destinations.js';
 import { TRAILER_TYPES } from '../../services/catalogs.js';
 import { STATUS_ORDER, LOGISTICS_DIVISIONS, statusOf, divisionLabel, showOnHome } from '../../config/logistics.js';
 import { motionOf, fleetKpis, filterRows, sortRows, MOTIONS } from '../../domain/gps/fleet.js';
-import { freshness, hasFix, ageText, dayHm, speedText, coordText } from '../../domain/gps/gps.js';
+import { freshness, hasFix, isHiddenImei, ageText, dayHm, speedText, coordText } from '../../domain/gps/gps.js';
 import { isApprox, precisionLabel } from '../../domain/gps/geo.js';
 import { linkStateText, shortName } from '../../domain/tracking/tracking.js';
 import { esc } from '../../domain/shared/format.js';
@@ -41,7 +41,7 @@ export function monitorRows() {
   const rows = [], linked = new Set();
   for (const e of lg.fleetBoard()) {
     const imei = gps.imeiOf(e.unit.id);
-    if (!imei) continue;
+    if (!imei || isHiddenImei(imei)) continue;
     linked.add(imei);
     const v = lg.entryView(e), op = e.op, p = gps.bestOf(imei);
     rows.push({ id: e.unit.id, vehicleId: e.unit.id, imei, unit: e.unit, label: v.label, placas: v.placas, companyShort: v.companyShort, operator: v.operator, operatorRec: v.operatorRec,

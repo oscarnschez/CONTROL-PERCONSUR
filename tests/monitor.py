@@ -24,6 +24,7 @@ def push(stale8=True):
     d.append({'imei':IMEI['8'],'deviceName':'U8','lat':18.915,'lng':-103.87,'speed':0,'gpsTime':now-3*3600 if stale8 else now-20,'signalTime':now-3*3600 if stale8 else now-10})
     d.append({'imei':'865190071300099','deviceName':'Camioneta oficina','lat':20.67,'lng':-103.35,'speed':0,'gpsTime':now-60,'signalTime':now-10})
     d.append({'imei':'865190071300100','deviceName':'Equipo sin posición'})
+    d.append({'imei':'865468051811175','deviceName':'Equipo dado de baja','lat':20.6,'lng':-103.3,'speed':0,'gpsTime':now-60,'signalTime':now-10})  # IMEI oculto en la app
     urllib.request.urlopen(urllib.request.Request(WL+'/__mock',data=json.dumps({'devices':d}).encode(),method='POST',headers={'Content-Type':'application/json'}))
 def to_worker(route, req):
     r=route.fetch(url=req.url.replace(W,WL)); route.fulfill(response=r)
@@ -115,6 +116,8 @@ try:
         pg.fill('[data-q]',q); pg.wait_for_timeout(250); t=pg.locator('.mon-list').inner_text()
         ok(vis()==1 and exp in t,f'buscador «{q}» → {exp}')
     pg.fill('[data-q]',''); pg.wait_for_timeout(250); ok(vis()==6,'sin filtros: todas las unidades')
+    pg.fill('[data-q]','baja'); pg.wait_for_timeout(250); ok(vis()==0 and 'dado de baja' not in pg.locator('.mon-list').inner_text(),'equipo GPS oculto (IMEI dado de baja): no aparece en el Monitor ni en el buscador')
+    pg.fill('[data-q]',''); pg.wait_for_timeout(250)
     # Selección: centrar, detalle y tarjeta del marcador
     canvas0=pg.evaluate("()=>{window.__cv=document.querySelector('.mon-map canvas'); return true}")
     pg.locator(f'.mon-row[data-u="{ids["u12"]}"]').click(); pg.wait_for_timeout(1800)

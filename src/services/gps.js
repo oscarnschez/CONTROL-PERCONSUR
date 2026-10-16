@@ -12,7 +12,7 @@
  */
 import { getSetting, setSetting } from './settings.js';
 import { listAll } from './catalogs.js';
-import { ageText, mergePositions } from '../domain/gps/gps.js';
+import { ageText, mergePositions, isHiddenImei } from '../domain/gps/gps.js';
 
 const DETAIL_TTL = 3 * 60 * 1000;
 const state = { devices: new Map(), fetchedAt: 0, error: '', stale: false, loading: null };
@@ -70,7 +70,7 @@ export async function refresh({ force = false } = {}) {
   state.loading = (async () => {
     try {
       const b = await call('/v1/posiciones');
-      const next = new Map((b.devices || []).filter((d) => d && d.imei).map((d) => [String(d.imei), d]));
+      const next = new Map((b.devices || []).filter((d) => d && d.imei && !isHiddenImei(d.imei)).map((d) => [String(d.imei), d]));
       next.forEach((d, imei) => { const o = state.devices.get(imei); if (o && o.gpsTime && d.gpsTime && o.gpsTime !== d.gpsTime) previous.set(imei, o); });
       state.devices = next;
       state.fetchedAt = b.fetchedAt || Date.now(); state.stale = !!b.stale; state.error = b.warning || '';
@@ -84,7 +84,7 @@ export async function refresh({ force = false } = {}) {
 /* Dirección y estado de una unidad (bajo demanda; guardado 3 min) */
 export function cachedDetail(imei) { const d = details.get(String(imei)); return d ? d.device : null; }
 export async function detail(imei, { force = false } = {}) {
-  imei = String(imei || ''); if (!imei || !configured()) return null;
+  imei = String(imei || ''); if (!imei || isHiddenImei(imei) || !configured()) return null;
   const c = details.get(imei);
   if (!force && c && Date.now() - c.at < DETAIL_TTL) return c.device;
   if (pendingDetail.has(imei)) return pendingDetail.get(imei);

@@ -13,7 +13,7 @@ def bal(pg): return pg.locator('.bal-card .bal-v').inner_text().replace('\xa0','
 def sheet_form(pg): pg.wait_for_selector('.op-form'); pg.wait_for_timeout(350)
 def save(pg): pg.locator('.op-form button[type=submit]').click(); pg.wait_for_timeout(500)
 def trip(pg, fare, exp, origin='Manzanillo', dest='Guadalajara', date='2026-02-10', div='puerto'):
-    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg)
+    pg.locator('[data-new="viaje"]').first.click(); pg.wait_for_selector('.asheet'); pg.locator('.asheet button',has_text='Solo registro financiero').click(); sheet_form(pg)
     if div=='campo': pg.locator('[data-div="campo"]').click()
     pg.fill('.op-form [name=date]',date); pg.fill('.op-form [name=origin]',origin); pg.fill('.op-form [name=destination]',dest)
     pg.fill('.op-form [name=fare]',fare); pg.fill('.op-form [name=exp]',exp); save(pg)
@@ -55,7 +55,7 @@ try:
     shot(pg,'o03_balance_ejemplo')
     # comisión ampliada
     settings(pg,minimo='2500')
-    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=date]','2026-04-20'); pg.fill('.op-form [name=origin]','Manz'); pg.wait_for_timeout(200)
+    pg.locator('[data-new="viaje"]').first.click(); pg.wait_for_selector('.asheet'); pg.locator('.asheet button',has_text='Solo registro financiero').click(); sheet_form(pg); pg.fill('.op-form [name=date]','2026-04-20'); pg.fill('.op-form [name=origin]','Manz'); pg.wait_for_timeout(200)
     ok(pg.locator('[data-sugg="origin"] .chip').count()>=1,'sugerencia de rutas usadas al escribir el origen')
     pg.locator('[data-sugg="origin"] .chip').first.click(); pg.fill('.op-form [name=destination]','Tala'); pg.fill('.op-form [name=fare]','10000'); pg.wait_for_timeout(200)
     prev=pg.locator('[data-prev]').inner_text()
@@ -63,7 +63,7 @@ try:
     shot(pg,'o04_viaje_ampliada'); save(pg)
     ok(bal(pg)=='$16,500.00','balance se recalcula al guardar el viaje: '+bal(pg))
     # validaciones
-    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=origin]','A'); pg.fill('.op-form [name=destination]','B'); pg.fill('.op-form [name=fare]','-500'); save(pg)
+    pg.locator('[data-new="viaje"]').first.click(); pg.wait_for_selector('.asheet'); pg.locator('.asheet button',has_text='Solo registro financiero').click(); sheet_form(pg); pg.fill('.op-form [name=origin]','A'); pg.fill('.op-form [name=destination]','B'); pg.fill('.op-form [name=fare]','-500'); save(pg)
     e1=pg.locator('[data-err="fare"]').inner_text(); pg.fill('.op-form [name=fare]',''); save(pg); e2=pg.locator('[data-err="fare"]').inner_text()
     ok('negativos' in e1 and 'Escribe la tarifa' in e2,'errores específicos: "'+e1+'" / "'+e2+'"')
     shot(pg,'o05_validacion'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -111,7 +111,9 @@ try:
     pg.keyboard.press('Escape')
     # Nuevo → viaje de operador
     pg.goto(BASE+'#/'); pg.wait_for_timeout(600); pg.locator('.tabbar .tab-new').click(); pg.wait_for_timeout(300); pg.locator('.new-opt[data-t="viaje"]').click(); pg.wait_for_selector('.picker')
-    pg.locator('.pk-row',has_text='Juan Alberto').click(); pg.wait_for_selector('.op-form',timeout=5000)
+    pg.locator('.pk-row',has_text='Juan Alberto').click(); pg.wait_for_selector('.asheet'); pg.wait_for_timeout(250)
+    ok(pg.locator('.asheet button',has_text='Orden de servicio completa').count()==1,'Nuevo → Viaje de operador pregunta: orden de servicio completa o solo registro financiero')
+    pg.locator('.asheet button',has_text='Solo registro financiero').click(); pg.wait_for_selector('.op-form',timeout=5000)
     ok('Juan Alberto' in pg.locator('.op-who').inner_text(),'Nuevo → Viaje de operador abre el formulario del operador elegido'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
     # respaldo e importación en otro "teléfono"
     pg.goto(BASE+'#/ajustes'); pg.wait_for_timeout(700)

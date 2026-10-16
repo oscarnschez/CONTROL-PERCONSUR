@@ -11,7 +11,7 @@ def pages(path): return int(re.search(r'Pages:\s+(\d+)',subprocess.run(['pdfinfo
 def sheet_form(pg): pg.wait_for_selector('.op-form'); pg.wait_for_timeout(300)
 def save(pg): pg.locator('.op-form button[type=submit]').click(); pg.wait_for_timeout(450)
 def trip(pg,fare,exp,date,o='Manzanillo',d='Guadalajara'):
-    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=date]',date); pg.fill('.op-form [name=origin]',o); pg.fill('.op-form [name=destination]',d); pg.fill('.op-form [name=fare]',fare); pg.fill('.op-form [name=exp]',exp); save(pg)
+    pg.locator('[data-new="viaje"]').first.click(); pg.wait_for_selector('.asheet'); pg.locator('.asheet button',has_text='Solo registro financiero').click(); sheet_form(pg); pg.fill('.op-form [name=date]',date); pg.fill('.op-form [name=origin]',o); pg.fill('.op-form [name=destination]',d); pg.fill('.op-form [name=fare]',fare); pg.fill('.op-form [name=exp]',exp); save(pg)
 try:
   with sync_playwright() as p:
     b=p.chromium.launch()

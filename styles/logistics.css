@@ -355,6 +355,10 @@
 
 /* ===== Control de llenos ===== */
 .lg-t-violet{--lg-c:#5B3DA0;--lg-bg:#EFE9FA;--lg-dot:#7C5CC4}
+/* Asignada (despachada, pendiente de salida) y estados de las Órdenes de Servicio */
+.lg-t-indigo{--lg-c:#2C3A8C;--lg-bg:#E7EAF8;--lg-dot:#4B5BC2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .lg-t-indigo{--lg-c:#B9C3F7;--lg-bg:#1E2346;--lg-dot:#8794EC}}
+:root[data-theme="dark"] .lg-t-indigo{--lg-c:#B9C3F7;--lg-bg:#1E2346;--lg-dot:#8794EC}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .lg-t-violet{--lg-c:#CDBDF3;--lg-bg:#2A2144;--lg-dot:#A48AE6}}
 :root[data-theme="dark"] .lg-t-violet{--lg-c:#CDBDF3;--lg-bg:#2A2144;--lg-dot:#A48AE6}
 .fc-tiles{grid-template-columns:repeat(3,1fr)}

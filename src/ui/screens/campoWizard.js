@@ -220,8 +220,10 @@ export async function campoWizard({ step }, q) {
     if (v === 'fix') toStep(issues[0].step, issues[0].field);
     if (v === 'gen') await generate(draft);
   });
-  shell.onBack(async () => { await drafts.flush(); if (i === 0) go('/', { replace: true }); else toStep(i - 1); });
-  shell.onClose(async () => { await drafts.flush(); toast('Borrador guardado'); go('/', { replace: true }); });
+  /* Documento preparado desde una Orden de Servicio: salir regresa al expediente */
+  const exitTo = () => (cp.serviceOrderId ? `/operacion/ordenes/${encodeURIComponent(cp.serviceOrderId)}?s=docs` : '/');
+  shell.onBack(async () => { await drafts.flush(); if (i === 0) go(exitTo(), { replace: true }); else toStep(i - 1); });
+  shell.onClose(async () => { await drafts.flush(); toast('Borrador guardado'); go(exitTo(), { replace: true }); });
   shell.onJump(async (n) => { await drafts.flush(); toStep(n); });
 
   draw();

@@ -16,6 +16,7 @@ export const isTrackable = (status) => isStatus(status);
 export function shareBlock(op, imei) {
   if (!op || op.closedAt || op.deletedAt) return 'La unidad no tiene una operación activa.';
   if (!isTrackable(op.status)) return 'La operación tiene un estado no válido.';
+  if (op.status === 'assigned') return 'La unidad todavía no sale: el rastreo se comparte cuando confirmes la salida.';
   if (!imei) return 'La unidad no tiene un GPS vinculado (Ajustes → GPS).';
   return '';
 }
@@ -70,7 +71,8 @@ export function reconcile(links, opOf, destOf = () => null, operatorOf = null, t
     if (op === undefined) continue;
     if (!op || op.closedAt || op.deletedAt) { out.push({ link, action: 'finish', body: { reason: 'closed' } }); continue; }
     const body = {};
-    if (op.status !== link.status) body.status = op.status;
+    /* «Asignada» no existe en el Worker (cerraría el enlace): se envía solo cuando la unidad sale */
+    if (op.status !== link.status && op.status !== 'assigned') body.status = op.status;
     if (!link.hasDest) { const d = destOf(op); if (d) body.dest = d; }
     if (operatorOf) { const n = shortName(operatorOf(op)); if (n !== (link.operator || '')) body.operator = n; }
     /* Remolque: solo con un Worker que ya guarda las placas (el enlace trae «trailer»), así no se reenvía en cada revisión */

@@ -7,6 +7,8 @@ export const icon = {
   home: I('<path d="M3.5 10.5 12 3.8l8.5 6.7"/><path d="M5.5 9v10.2h5V14h3v5.2h5V9"/>'),
   docs: I('<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M4.5 7v14.5H15"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>', ' stroke-width="2.4"'),
+  /* Orden de servicio: tablilla con hoja y renglones */
+  clipboard: I('<rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9 4.5V3.5h6v1"/><rect x="9" y="3" width="6" height="3" rx="1"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/>'),
   catalog: I('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M4 9.3h16M4 14.6h16M9 4v16"/>'),
   gear: I('<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.7 7.7 0 0 0 0-3l2-1.6-2-3.4-2.4.9a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.4-.9-2 3.4 2 1.6a7.7 7.7 0 0 0 0 3l-2 1.6 2 3.4 2.4-.9a7.6 7.6 0 0 0 2.6 1.5l.4 2.4h4l.4-2.4a7.6 7.6 0 0 0 2.6-1.5l2.4.9 2-3.4z"/>'),
   /* Divisiones: contenedores apilados (Puerto) y brote (Campo) */

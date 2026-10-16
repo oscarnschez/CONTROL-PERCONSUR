@@ -32,6 +32,8 @@ import { isReadOnly } from '../../services/access.js';
 import { toast } from '../components/toast.js';
 import { formSheet, fail } from './operatorForms.js';
 import { whenText } from './empties.js';
+import { orderForLoad } from '../../services/orders.js';
+import { folioChip, folioTag, orderPath } from './orderKit.js';
 
 const href = (id) => `#/operacion/logistica/llenos/${encodeURIComponent(id)}`;
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -57,7 +59,7 @@ function card(r, { compact = false, view = fc.view } = {}) {
     <div class="fc-c1"><b class="fc-num mono">${esc(r.containerNumber)}</b><span class="fc-when">${esc(compact ? r.scheduledTime : whenText(r.scheduledDate, r.scheduledTime))}</span><span class="chev">${icon.chev}</span></div>
     <div class="fc-c2"><span class="fc-w">${esc(v.weight)}</span><span class="dot">·</span>${locBadge(r)}${v.place ? `<span class="dot">·</span><span>${esc(v.place)}</span>` : ''}</div>
     ${v.unit || v.operator ? `<div class="fc-c3">${v.unit ? `<span>Unidad: <b>${esc(v.unit)}</b></span>` : ''}${v.operator ? `<span>${v.unit ? '· ' : ''}<b>${esc(v.operator)}</b></span>` : ''}</div>` : ''}
-    <div class="ec-st">${statusChip(r.status)}${docChip(v.docs)}${late ? lateChip() : ''}</div></a>`;
+    <div class="ec-st">${statusChip(r.status)}${docChip(v.docs)}${late ? lateChip() : ''}${folioTag(orderForLoad(r.id))}</div></a>`;
 }
 const EV_ICON = { created: icon.plus, reschedule: icon.clock, vehicle: icon.truck, operator: icon.person, trailer: icon.trailer, edit: icon.edit, location: icon.pin, doc_added: icon.paperclip, doc_replaced: icon.refresh, doc_removed: icon.trash, doc_required: icon.check, doc_optional: icon.minus, status: icon.swap, loaded: icon.check, cancelled: icon.close, reopened: icon.refresh, link: icon.link, notes: icon.edit };
 const eventRow = (e) => `<div class="row static ec-mv${e.eventType === 'loaded' ? ' done' : ''}"><span class="row-ic">${EV_ICON[e.eventType] || icon.info}</span>
@@ -231,7 +233,7 @@ export async function fullDetailScreen({ id }) {
         <button type="button" class="nav-act" data-more data-w aria-label="Más acciones">${icon.more}</button></header>
       <section class="lg-hero ec-hero fc-hero lg-t-${loadStatus(r.status).tone}">
         <small>Contenedor lleno</small><h1 class="ec-num big mono">${esc(r.containerNumber)}</h1>
-        <div class="ec-st">${statusChip(r.status, 'lg-big')}${docChip(sum)}${late ? lateChip() : ''}</div>
+        <div class="ec-st">${statusChip(r.status, 'lg-big')}${docChip(sum)}${late ? lateChip() : ''}${folioChip(orderForLoad(r.id))}</div>
         <p class="lg-hero-sub">${icon.calendar}<b>${esc(longDay(r.scheduledDate))} · ${esc(r.scheduledTime)}</b><br>${locBadge(r)}${v.place ? ` · ${esc(v.place)}` : ''} · ${esc(v.weight)}</p>
         <div class="ec-acts" data-w>
           <button type="button" class="btn-primary block lg" data-a="docs">${icon.paperclip}<span>${sum.complete ? 'Ver documentación' : 'Subir documentos'}</span></button>
@@ -332,8 +334,9 @@ export async function fullDetailScreen({ id }) {
   });
   on(root, 'click', '[data-more]', async () => {
     const r = fc.byId(id); if (!r) return;
-    const open = isOpenLoad(r);
+    const open = isOpenLoad(r), ord = orderForLoad(r.id);
     const v = await actionSheet({ title: r.containerNumber, message: `${loadStatus(r.status).label} · ${whenText(r.scheduledDate, r.scheduledTime, { year: true })}`, actions: [
+      ...(ord ? [{ label: `Abrir orden ${ord.folio}`, value: 'order', icon: icon.clipboard }] : open && !isReadOnly() ? [{ label: 'Crear orden de servicio', value: 'neworder', icon: icon.clipboard, sub: 'Usa esta carga: cita y documentos no se capturan dos veces' }] : []),
       { label: 'Ver expediente', value: 'preview', icon: icon.eye }, { label: 'Generar PDF del expediente', value: 'build', icon: icon.file },
       { label: 'Editar carga', value: 'edit', icon: icon.edit }, { label: 'Reprogramar cita', value: 'reschedule', icon: icon.clock }, { label: 'Asignar transporte', value: 'assign', icon: icon.truck },
       { label: 'Cambiar estado', value: 'status', icon: icon.swap }, { label: 'Vincular con Logística / viaje', value: 'link', icon: icon.link },
@@ -341,6 +344,8 @@ export async function fullDetailScreen({ id }) {
       ...(r.status === 'cancelled' ? [{ label: 'Eliminar carga', value: 'delete', style: 'destructive', icon: icon.trash }] : []),
     ] });
     try {
+      if (v === 'order' && ord) go(orderPath(ord.id));
+      if (v === 'neworder') go(`/operacion/ordenes/nueva?carga=${encodeURIComponent(r.id)}`);
       if (v === 'preview') await openDossierPreview(r);
       if (v === 'build') await generateDossier(r);
       if (v === 'edit') openLoadForm(r, {});

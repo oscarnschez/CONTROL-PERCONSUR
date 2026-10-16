@@ -17,6 +17,8 @@ import * as fulls from '../../services/fulls.js';
 import { summary as fullsSummary } from '../../domain/fulls/fulls.js';
 import { countByStatus, homeEntries } from '../../domain/logistics/logistics.js';
 import { icon } from '../components/icons.js';
+import * as so from '../../services/orders.js';
+import { tileCounts } from '../../domain/orders/orders.js';
 import * as mt from '../../services/maintenance.js';
 import * as un from '../../services/units.js';
 import { fleetSummary as unitsSummary } from '../../domain/units/units.js';
@@ -46,7 +48,9 @@ export async function operationScreen() {
   const nv = openEmpties().length;
   await fulls.loadFulls();
   const fs = fullsSummary(fulls.all(), fulls.docsOf);
-  const meta = { logistica: (lc.all ? `${working} en operación | ${lc.empty || 0} vacía${lc.empty === 1 ? '' : 's'} | ${lc.inactive || 0} inactiva${lc.inactive === 1 ? '' : 's'}` : 'Sin unidades en el catálogo') + (nv ? ` | Vacíos pendientes: ${nv}` : '') + (fs.today ? ` | Llenos hoy: ${fs.today}` : ''), taller: md.open.length || md.openIssues.length || md.oilAlerts.length ? [`En taller: ${md.inShopVehicles.length + md.inShopTrailers.length}`, `Pendientes: ${md.open.length}`, md.openIssues.length ? `Fallas: ${md.openIssues.length}` : '', md.oilAlerts.length ? `Aceite: ${md.oilAlerts.length} alerta${md.oilAlerts.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' | ') : 'Sin equipos en el taller', combustible: fl.count ? `Este mes: ${fl.count} recargas | ${Math.round(fl.liters).toLocaleString('en-US')} L | ${money(fl.amount)}${fl.perf ? ` | ${fl.perf.kmL.toFixed(2)} km/L` : ''}` : 'Sin recargas este mes' };
+  await so.loadOrders();
+  const oc = tileCounts(so.rows()), nOrd = so.all().length;
+  const meta = { ordenes: nOrd ? [`Pendientes: ${oc.pending}`, `Listas: ${oc.ready}`, `En operación: ${oc.operating}`, oc.returns ? `Devolución pendiente: ${oc.returns}` : '', oc.incidents ? `Con incidencias: ${oc.incidents}` : ''].filter(Boolean).join(' | ') : 'Sin órdenes de servicio', logistica: (lc.all ? `${working} en operación | ${lc.empty || 0} vacía${lc.empty === 1 ? '' : 's'} | ${lc.inactive || 0} inactiva${lc.inactive === 1 ? '' : 's'}` : 'Sin unidades en el catálogo') + (nv ? ` | Vacíos pendientes: ${nv}` : '') + (fs.today ? ` | Llenos hoy: ${fs.today}` : ''), taller: md.open.length || md.openIssues.length || md.oilAlerts.length ? [`En taller: ${md.inShopVehicles.length + md.inShopTrailers.length}`, `Pendientes: ${md.open.length}`, md.openIssues.length ? `Fallas: ${md.openIssues.length}` : '', md.oilAlerts.length ? `Aceite: ${md.oilAlerts.length} alerta${md.oilAlerts.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' | ') : 'Sin equipos en el taller', combustible: fl.count ? `Este mes: ${fl.count} recargas | ${Math.round(fl.liters).toLocaleString('en-US')} L | ${money(fl.amount)}${fl.perf ? ` | ${fl.perf.kmL.toFixed(2)} km/L` : ''}` : 'Sin recargas este mes' };
   return screen(`<div class="page wide hub"><header class="page-top"><h1 class="title">Operación</h1></header>
     <p class="page-lead">Seguimiento operativo de las unidades.</p>
     <div class="mod-list">${OPERATION_MODULES.map((m) => card(m, meta[m.key])).join('')}</div></div>`);

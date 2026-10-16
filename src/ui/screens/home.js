@@ -14,6 +14,7 @@ import { startPuerto, startCampo, discardDraft, draftRoute } from '../flows.js';
 import { confirmDestructive } from '../components/sheet.js';
 import { docRow } from './documents.js';
 import { mountHomeOps } from './logistics.js';
+import { mountHomeOrders } from './orders.js';
 import { mountCoverage } from './tripsMap.js';
 import * as sync from '../../services/sync.js';
 import { whenText } from '../../domain/sync/sync.js';
@@ -57,6 +58,7 @@ export async function homeScreen() {
         <button type="button" class="div-act" data-new="campo"><span>Nueva asignación</span>${icon.chev}</button>
       </article>
     </section>
+    <section class="sec so-home" data-sohome aria-label="Órdenes de servicio"></section>
     <section class="sec tm-homew" data-coverage aria-label="Cobertura nacional" hidden></section>
     <section class="sec home-recent">
       <div class="sec-hrow"><h2 class="sec-h">Recientes</h2>${docs.length ? '<a class="link" href="#/documentos">Ver todos</a>' : ''}</div>
@@ -67,6 +69,8 @@ export async function homeScreen() {
   const root = s.el;
   /* Unidades en operación: se redibuja sola cuando cambia Logística */
   const unOps = mountHomeOps(root.querySelector('[data-lghome]'));
+  /* Órdenes de servicio: pendientes, listas, en operación y devoluciones (se redibuja sola) */
+  const unOrd = mountHomeOrders(root.querySelector('[data-sohome]'));
   /* Cobertura nacional: resumen del Mapa de viajes (se llena sin retrasar Inicio) */
   const unCov = mountCoverage(root.querySelector('[data-coverage]'));
   /* Información compartida: modo consulta o estado de la publicación */
@@ -94,7 +98,7 @@ export async function homeScreen() {
   const drawBell = () => { const n = al.unseenCount(); bn.hidden = !n; bn.textContent = n > 99 ? '99+' : String(n); bell.setAttribute('aria-label', n ? `Avisos: ${n} sin ver` : 'Avisos'); };
   drawBell();
   const unAl = al.onAlertsChange(drawBell), unUn = onUnitsChange(drawBell);
-  s.cleanup = () => { unSync(); unCov(); unAl(); unUn(); if (typeof unOps === 'function') unOps(); };
+  s.cleanup = () => { unSync(); unCov(); unAl(); unUn(); unOrd(); if (typeof unOps === 'function') unOps(); };
   on(root, 'click', '[data-new]', (e, b) => (b.dataset.new === 'puerto' ? startPuerto() : startCampo()));
   on(root, 'click', '[data-continue]', (e, b) => { const d = pend.find((x) => x.id === b.dataset.continue); if (d) go(draftRoute(d)); });
   on(root, 'click', '[data-discard]', async (e, b) => {

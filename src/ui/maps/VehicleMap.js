@@ -12,8 +12,8 @@ import { MapControls } from './MapControls.js';
  * opts: { centerLabel, fitLabel, views } → { setVehicle(v|null), setDestination(d|null), recenter(), showAll(), view, setView(v), destroy() }
  *   views  true = botón para cambiar entre vista de mapa y satelital
  */
-export async function createVehicleMap(container, { centerLabel = 'Centrar unidad', fitLabel = 'Ver unidad y destino', views = false } = {}) {
-  const base = await createBaseMap(container, { views });
+export async function createVehicleMap(container, { centerLabel = 'Centrar unidad', fitLabel = 'Ver unidad y destino', views = false, defaultView = 'map' } = {}) {
+  const base = await createBaseMap(container, { views, defaultView });
   const { ml, map } = base;
   let vm = null, dest = null, destPt = null, destKey = '', follow = true, mode = 'both', framed = false, gone = false;
   const controls = new MapControls({ onCenter: () => api.recenter(), onFit: () => api.showAll(), centerLabel, fitLabel, base: views ? base : null });

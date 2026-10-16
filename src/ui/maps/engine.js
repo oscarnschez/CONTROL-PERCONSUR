@@ -45,18 +45,19 @@ export function pageTheme() {
 
 /* Vista elegida (mapa o satélite): se recuerda en este dispositivo */
 const VIEW_KEY = 'pcs-map-view';
-export function savedView() { try { const v = localStorage.getItem(VIEW_KEY); return VIEWS[v] ? v : 'map'; } catch (e) { return 'map'; } }
+export function savedView(def = 'map') { try { const v = localStorage.getItem(VIEW_KEY); return VIEWS[v] ? v : def; } catch (e) { return def; } }
 function saveView(v) { try { localStorage.setItem(VIEW_KEY, v); } catch (e) { /* sin almacenamiento: solo esta vez */ } }
 
 /*
  * Mapa base. opts: { center, zoom, interactive=true, attribution='bottom-right', views=false }
  *   views  true = permite cambiar a vista satelital (arranca con la última vista elegida en el dispositivo)
+ *   defaultView  vista si en el dispositivo todavía no se ha elegido ninguna ('map' | 'satellite')
  * Devuelve { ml, map, theme, view, setView(v), destroy() }. Cambia de estilo solo si cambia el tema o la vista (los
  * marcadores, que son elementos HTML, se conservan).
  */
-export async function createBaseMap(container, { center = MEXICO.center, zoom = MEXICO.zoom, interactive = true, attribution = 'bottom-right', views = false } = {}) {
+export async function createBaseMap(container, { center = MEXICO.center, zoom = MEXICO.zoom, interactive = true, attribution = 'bottom-right', views = false, defaultView = 'map' } = {}) {
   const ml = await loadMapLibre();
-  let theme = pageTheme(), view = views ? savedView() : 'map';
+  let theme = pageTheme(), view = views ? savedView(defaultView) : 'map';
   const map = new ml.Map({
     container, style: buildStyle(theme, view), center, zoom, interactive,
     attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,

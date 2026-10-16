@@ -48,6 +48,11 @@ const by = Object.fromEntries(acts.map((a) => [a.link.opId, a]));
 ok(!by.a && by.b.action === 'update' && by.b.body.status === 'empty_transit' && by.c.action === 'finish' && by.c.body.reason === 'closed' && by.d.action === 'finish', 'En ruta vacío: el enlace sigue activo y recibe el estado; al cerrar o borrar la operación se finaliza');
 ok(by.e.action === 'update' && by.e.body.status === 'unloading' && by.e.body.dest.lat === 20 && !by.e.body.operator && !by.f && !by.g, 'cambio de estado y destino recién ubicado se envían; operaciones de otro dispositivo y enlaces cerrados no se tocan');
 ok(by.h.action === 'update' && by.h.body.operator === 'José Castañeda' && !by.a, 'cambio de operador: el cliente ve al nuevo operador');
+const accT = reconcile([L({ opId: 'a', operator: 'Daniel Rivera', trailer: '788-WR-4' }), L({ opId: 'b', operator: 'Daniel Rivera', trailer: '788-WR-4' }), L({ opId: 'c', operator: 'Daniel Rivera' })],
+  (id) => ({ status: 'to_destination', op: 'Daniel Antonio Rivera Bautista', tr: { a: '788-wr-4', b: 'JX-55-123', c: 'JX-55-123' }[id] }), () => null, (op) => op.op, (op) => ({ placas: op.tr, type: 'chasis' }));
+const byT = Object.fromEntries(accT.map((a) => [a.link.opId, a]));
+ok(!byT.a && byT.b.body.trailer === 'JX-55-123' && byT.b.body.trailerType === 'chasis' && !byT.c, 'cambio de remolque: el portal recibe las placas del nuevo remolque (Worker anterior sin placas: no se reenvía)');
+ok(linkPayload(op, { label: 'U12', trailerType: 'chasis', trailer: '788-WR-4', operator: 'Daniel Rivera', placas: '60-BN-4J' }, '1', null).trailer === '788-WR-4', 'al compartir: placas del remolque asignado (no las de la unidad)');
 
 /* Datos de la flota completados con la consulta por unidad (misma regla en la app y en el Worker) */
 const fl = { lat: 19.01007, lng: -103.832489, gpsTime: null, signalTime: null, speed: 0, address: null };

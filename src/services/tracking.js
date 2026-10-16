@@ -105,11 +105,11 @@ export async function syncAll({ force = false } = {}) {
   await load({ force });
   const ops = new Map(lg.allRecords().map((o) => [o.id, o]));
   const opOf = (id) => (ops.has(id) ? ops.get(id) : undefined);
-  await apply(reconcile(links(), opOf, (op) => destPoint(targetOf(op)), (op) => lg.view(op).operator));
+  await apply(reconcile(links(), opOf, (op) => destPoint(targetOf(op)), (op) => lg.view(op).operator, (op) => { const v = lg.view(op); return { placas: v.trailer, type: v.trailerType }; }));
 }
 
 /* ¿Algún cambio de Logística toca el rastreo? (estado, cierre o borrado de una operación) */
-const sig = (o) => `${o.status}|${o.closedAt ? 1 : 0}|${o.deletedAt ? 1 : 0}`;
+const sig = (o) => `${o.status}|${o.closedAt ? 1 : 0}|${o.deletedAt ? 1 : 0}|${o.trailerId || ''}|${o.operatorId || ''}`;
 function takeSnapshot() { snapshot = new Map(lg.allRecords().map((o) => [o.id, sig(o)])); }
 function relevantChange() {
   const prev = snapshot; takeSnapshot();

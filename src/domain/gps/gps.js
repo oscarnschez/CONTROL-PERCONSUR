@@ -6,6 +6,9 @@
  */
 
 /* Sin señal del equipo durante más de esto → «Señal GPS sin actualización reciente» */
+/* Equipos GPS que no se muestran en la app (dados de baja o ajenos a la flota): no aparecen en Monitor, mapa ni panel */
+export const HIDDEN_IMEIS = new Set(['865468051811175', '353701099167815', '865190071366556']);
+export const isHiddenImei = (imei) => HIDDEN_IMEIS.has(String(imei || '').trim());
 export const STALE_MS = 10 * 60 * 1000;
 
 const p2 = (n) => String(n).padStart(2, '0');

@@ -1,4 +1,4 @@
-import { freshness, ageText, suggestUnit, hasFix, speedText, coordText, mapsLink, STALE_MS } from '../src/domain/gps/gps.js';
+import { HIDDEN_IMEIS, isHiddenImei, freshness, ageText, suggestUnit, hasFix, speedText, coordText, mapsLink, STALE_MS } from '../src/domain/gps/gps.js';
 const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
 const now = new Date(2026, 9, 8, 3, 30, 0).getTime(), min = 60000;
 ok(ageText(now - 24000, now) === 'hace 24 s' && ageText(now - 3 * min, now) === 'hace 3 min' && ageText(now - 125 * min, now) === 'hace 2 h', 'antigüedad: s, min, h');
@@ -16,3 +16,5 @@ const units = [{ id: 'a', eco: '12', placas: '60-BN-4J' }, { id: 'b', eco: '21',
 ok(suggestUnit('U12 60-BN-4J', units).id === 'a', 'sugerencia por placas');
 ok(suggestUnit('Unidad u-21', units).id === 'b' && suggestUnit('U05', units).id === 'c', 'sugerencia por número económico');
 ok(suggestUnit('Camioneta oficina', units) === null && suggestUnit('U120', units) === null, 'sin coincidencia clara: sin sugerencia');
+ok(HIDDEN_IMEIS.size === 3 && ['865468051811175', '353701099167815', '865190071366556'].every(isHiddenImei) && isHiddenImei(865468051811175) && !isHiddenImei('865468051811176') && !isHiddenImei(''),
+  'equipos ocultos: los 3 IMEI dados de baja no se muestran (y solo esos)');

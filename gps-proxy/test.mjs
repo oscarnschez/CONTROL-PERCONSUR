@@ -259,6 +259,55 @@ try {
   ok(r.body.state === 'expired' && !r.body.position && !r.body.trip, 'después de 72 h el enlace vence solo');
   r = await call('/v1/enlaces', { e: { ...envT, TRACK_MAX_HOURS: '12' }, method: 'POST', body: { ...op1, opId: 'lg_op6' } });
   ok(r.body.link.expiresAt - r.body.link.createdAt === 12 * 3600 * 1000, 'TRACK_MAX_HOURS ajusta la vigencia');
+  /* Enlace corto con TinyURL (API simulada: alias de esta cuenta, de otra cuenta y fallas) */
+  {
+    const realF = globalThis.fetch, calls = [], aliases = new Map([['TGHU7654321', 'otra'], ['MSKU1111111', 'perconsur']]);
+    let tinyDown = false, n = 0;
+    globalThis.fetch = async (u, o = {}) => {
+      const url = String(u.url || u);
+      if (!url.startsWith('https://api.tinyurl.com/')) return realF(u, o);
+      const b = JSON.parse(o.body || '{}'), path = url.slice(23);
+      calls.push({ path, method: o.method, auth: o.headers.Authorization, body: b });
+      const res = (code, body) => new Response(JSON.stringify(body), { status: code, headers: { 'Content-Type': 'application/json' } });
+      if (tinyDown) return res(500, { code: 5, data: [], errors: ['Server error'] });
+      if (path === '/create') {
+        if (b.alias && aliases.has(b.alias)) return res(422, { code: 5, data: [], errors: ['Alias is not available.'] });
+        const al = b.alias || 'zx' + (++n) + 'q8'; aliases.set(al, 'perconsur');
+        return res(200, { code: 0, data: { domain: b.domain, alias: al, tiny_url: `https://${b.domain}/${al}`, url: b.url }, errors: [] });
+      }
+      if (path === '/change') return aliases.get(b.alias) === 'perconsur' ? res(200, { code: 0, data: { url: b.url }, errors: [] }) : res(404, { code: 3, data: [], errors: ['Not found'] });
+      return res(404, { code: 3, data: [], errors: ['Not found'] });
+    };
+    try {
+      const envU = { ...envT, TINYURL_TOKEN: 'tok-secreto' };
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t1' } });
+      const T1 = r.body.link, c1 = calls.filter((c) => c.path === '/create');
+      ok(T1.short === 'https://tinyurl.com/MSCU1234567' && c1.length === 1 && c1[0].body.alias === 'MSCU1234567' && c1[0].body.url === WORKER_ORIGIN + '/r/' + T1.id && c1[0].auth === 'Bearer tok-secreto', 'TinyURL: el enlace se acorta con el número de contenedor como alias (tinyurl.com/MSCU1234567)');
+      ok(!JSON.stringify(r.body).includes('tok-secreto'), 'TinyURL: el token se queda en el Worker (no llega a la app)');
+      const nCalls = calls.length;
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t1' } });
+      ok(r.body.reused && r.body.link.short === T1.short && calls.length === nCalls, 'compartir otra vez: mismo enlace corto, sin volver a llamar a TinyURL');
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t2', container: 'MSKU1111111' } });
+      ok(r.body.link.short === 'https://tinyurl.com/MSKU1111111' && calls.some((c) => c.path === '/change' && c.method === 'PATCH' && c.body.alias === 'MSKU1111111' && c.body.url.endsWith('/r/' + r.body.link.id)), 'contenedor con alias ya creado en la cuenta (otro viaje): el alias se apunta al enlace nuevo');
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t3', container: 'TGHU7654321' } });
+      ok(/^https:\/\/tinyurl\.com\/TGHU7654321-\d{4}$/.test(r.body.link.short), 'alias ocupado por otra cuenta: contenedor + día y mes (' + r.body.link.short + ')');
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t4', container: '' } });
+      ok(/^https:\/\/tinyurl\.com\/zx\d+q8$/.test(r.body.link.short) && !calls.at(-1).body.alias, 'sin número de contenedor: enlace corto con alias al azar');
+      tinyDown = true;
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t5', container: 'ABCU2222222' } });
+      ok(r.status === 201 && r.body.link.short === '' && r.body.link.state === 'active', 'TinyURL sin servicio: se comparte el enlace normal (sin error)');
+      tinyDown = false;
+      r = await call('/v1/enlaces', { e: envU, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t5', container: 'ABCU2222222' } });
+      ok(r.body.reused && r.body.link.short === 'https://tinyurl.com/ABCU2222222', 'al volver a compartir se reintenta el enlace corto');
+      r = await call('/v1/enlaces', { e: envU, method: 'GET' });
+      ok(r.body.links.find((l) => l.opId === 'lg_t5').short === 'https://tinyurl.com/ABCU2222222', 'listado interno: incluye el enlace corto');
+      const before = calls.length;
+      r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, imei: '865190071399999', opId: 'lg_t6', container: 'ABCU3333333' } });
+      ok(r.body.link.short === '' && calls.length === before, 'sin TINYURL_TOKEN no se llama a TinyURL');
+      r = await call('/salud', { e: envU });
+      ok(r.body.enlaceCorto && r.body.enlaceCorto.tinyurl === true, '/salud indica si el acortador está configurado');
+    } finally { globalThis.fetch = realF; }
+  }
   /* Listado interno */
   r = await call('/v1/enlaces', { e: envT });
   const states = Object.fromEntries(r.body.links.map((l) => [l.opId, l.state]));

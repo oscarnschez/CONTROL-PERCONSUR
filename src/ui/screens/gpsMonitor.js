@@ -406,10 +406,11 @@ export async function gpsMonitorScreen() {
 /* ===== Hoja para compartir el enlace con el cliente ===== */
 function openLinkSheet(r, link) {
   const url = tracking.linkUrl(link), maxH = tracking.status().maxHours || 72;
-  const text = `Rastreo de tu envío con PERCONSUR${routeTxt(r) ? ` (${routeTxt(r)})` : ''}: ${url}`;
+  const text = `Rastreo de tu transporte con PERCONSUR${routeTxt(r) ? ` (${routeTxt(r)})` : ''}: ${url}`, short = url !== tracking.directUrl(link);
   const sh = openSheet({ title: 'Rastreo para el cliente', className: 'trk-sheet', body: `
     <p class="sheet-lead">${esc(r.label)}${routeTxt(r) ? ' · ' + esc(routeTxt(r)) : ''}</p>
     <div class="trk-url"><span class="mono" data-url>${esc(url)}</span></div>
+    ${short ? `<p class="grp-note trk-short">Enlace corto de TinyURL${link.container && link.short.includes(link.container.split(' / ')[0]) ? ' con el número de contenedor' : ''}.</p>` : ''}
     <ul class="trk-what">
       <li>${icon.eye}<span>El cliente ve el número y las placas de la unidad, la ubicación actual, el origen, el destino, el estado del viaje, las placas del remolque y el contenedor (número y tipo).</span></li>
       <li>${icon.person}<span>${r.operator ? `Operador: <b>${esc(shortName(r.operator))}</b> (solo nombre y apellido).` : 'Sin operador asignado.'}</span></li>
@@ -425,7 +426,7 @@ function openLinkSheet(r, link) {
     </div>` });
   sh.body.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-sh]'); if (!b) return;
-    if (b.dataset.sh === 'share') { try { await navigator.share({ title: 'Rastreo de tu envío · PERCONSUR', text: text.replace(`: ${url}`, ''), url }); } catch (err) { /* cancelado */ } }
+    if (b.dataset.sh === 'share') { try { await navigator.share({ title: 'Rastreo de tu transporte · PERCONSUR', text: text.replace(`: ${url}`, ''), url }); } catch (err) { /* cancelado */ } }
     if (b.dataset.sh === 'copy') {
       let done = false;
       try { await navigator.clipboard.writeText(url); done = true; } catch (err) { /* sin permiso */ }

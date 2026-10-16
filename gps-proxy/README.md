@@ -129,6 +129,31 @@ se actualiza cada 30 s; si en ese momento no hay conexión, la app lo envía en 
 
 5. **Prueba:** abre `/salud`; debe decir `"rastreoClientes": { "kv": true, "portal": true }`.
 
+### Enlace corto con TinyURL (opcional)
+
+Con una cuenta de TinyURL, el Worker acorta el enlace del cliente usando el **número de contenedor como alias**, el mismo
+que imprime la nota de entrega: `https://tinyurl.com/MSCU1234567`. El token de TinyURL se guarda como **secreto** del
+Worker; nunca llega al navegador ni a la app.
+
+1. En TinyURL: tu cuenta → **Developer / API** → *Create API token* (permisos para crear y editar enlaces).
+2. En el Worker → Settings → **Variables and Secrets** → Add → tipo **Secret** → nombre `TINYURL_TOKEN` → pega el token → Deploy.
+3. Opcional (Text): `TINYURL_DOMAIN` si tu plan incluye un dominio propio (por defecto `tinyurl.com`).
+4. **Prueba:** `/salud` debe decir `"enlaceCorto": { "tinyurl": true }`. Comparte una unidad desde el Centro de Monitoreo:
+   la hoja muestra el enlace corto («Enlace corto de TinyURL con el número de contenedor»).
+
+Cómo elige el alias (una vez por enlace; al volver a compartir se reutiliza):
+
+| Caso | Alias |
+|---|---|
+| El contenedor no tiene alias todavía | `MSCU1234567` |
+| El alias ya existe **en tu cuenta** (el contenedor tuvo un viaje anterior) | `MSCU1234567`, ahora apuntando al viaje nuevo |
+| El alias lo usa **otra cuenta** de TinyURL | `MSCU1234567-1610` (contenedor + día y mes) |
+| La operación no tiene número de contenedor en la Referencia | alias al azar de TinyURL |
+| TinyURL no responde o el token es inválido | se comparte el enlace normal del Worker; se reintenta al volver a compartir |
+
+Cuando el alias de un contenedor se reutiliza para un viaje nuevo, el enlace corto del viaje anterior lleva al viaje
+nuevo. El enlace directo del viaje anterior (`…/r/…`) sigue mostrando «Entrega finalizada».
+
 **Hora y señal:** la consulta de la flota de IOPGPS puede llegar sin la hora de la posición ni la última señal del
 equipo. En ese caso el portal (igual que el Centro de Monitoreo) las completa con la consulta por unidad (ubicación +
 estado, guardada 2 min), así no muestra «Sin señal reciente» por falta de hora. Solo dice «Sin señal reciente del GPS»

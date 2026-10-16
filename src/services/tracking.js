@@ -28,7 +28,9 @@ function emit() { subs.forEach((fn) => { try { fn(); } catch (e) { console.warn(
 export const onTrackingChange = (fn) => { subs.add(fn); return () => subs.delete(fn); };
 export const status = () => ({ at: state.at, error: state.error, maxHours: state.maxHours });
 export const links = () => [...state.links.values()];
-export const linkUrl = (link) => (link ? gps.config().url + link.path : '');
+/* Enlace para el cliente: el corto de TinyURL si el Worker lo creó (alias = número de contenedor), si no el directo */
+export const directUrl = (link) => (link ? gps.config().url + link.path : '');
+export const linkUrl = (link) => (link ? (/^https:\/\//.test(link.short || '') ? link.short : directUrl(link)) : '');
 /* Enlace activo de una operación (el más reciente) */
 export const activeFor = (opId) => links().filter((l) => l.opId === opId && l.state === 'active' && l.expiresAt > Date.now()).sort((a, b) => b.createdAt - a.createdAt)[0] || null;
 export const blockFor = (op) => shareBlock(op, op ? gps.imeiOf(op.vehicleId) : '');

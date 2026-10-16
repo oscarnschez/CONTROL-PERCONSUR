@@ -628,11 +628,36 @@ function portalResponse(env, token, status = 200) {
  * Para que un dispositivo vacío o desactualizado no reemplace la información por error, una foto nueva solo se acepta
  * si viene del mismo dispositivo que publicó la anterior, si parte de la versión vigente (X-PCS-Base) o si se pide
  * expresamente (X-PCS-Force). Los archivos se entregan siempre como descarga binaria (nunca se muestran en este sitio).
+ *
+ * Sección Taller (opcional, secreto DATA_TALLER_KEY): un teléfono de Taller captura solo mantenimiento.
+ *   snapt / snapt:meta   foto reducida que publica el capturista: Taller, unidades, remolques y lo mínimo para el taller
+ *                        (sin viajes, cobros, tarifas, operadores ni documentos). La clave de Taller NO puede leer «snap».
+ *   in:<dispositivo>     cambios pendientes del teléfono de Taller (los reemplaza completos en cada envío)
+ *   in:meta              { at, device, seq } para que el capturista sepa que hay cambios sin listar el espacio cada vez
+ * El capturista aplica los cambios, los incluye en su información y publica de nuevo con el acuse (acks) de cada teléfono.
+ * La clave de Taller sube archivos nuevos (fotos del taller) pero no reemplaza ni borra archivos existentes.
  */
 const DATA_MAX = 24 * 1024 * 1024;   /* KV admite hasta 25 MiB por valor */
 const DATA_REQ_MAX = 600;            /* consultas por minuto por IP en las rutas de datos (sincronizar muchos archivos) */
 const FILE_ID_RE = /^[A-Za-z0-9_.:-]{1,120}$/;
 const VER_RE = /^[A-Za-z0-9_.-]{1,64}$/;
+const TALLER_OPS = ['maintenanceOrders', 'maintenanceServices', 'maintenanceIssues', 'maintenanceComponents', 'tireReplacements', 'oilChanges',
+  'maintenanceAttachments', 'maintenanceEvents', 'maintenanceProfiles', 'maintenanceParts', 'trailers'];
+const INBOX_MAX = 4 * 1024 * 1024, INBOX_OPS = 5000, INBOX_FILES = 1000;
+const TALLER_ONLY = 'Este dispositivo es de Taller: solo recibe y captura la información de Taller.';
+/* Lote de cambios del teléfono de Taller: forma esperada antes de guardarlo (el capturista vuelve a validar al aplicarlo) */
+export function sanitizeInbox(b) {
+  if (!b || typeof b !== 'object' || !VER_RE.test(String(b.device || '')) || !Number.isInteger(b.seq) || b.seq < 0) return null;
+  if (!Array.isArray(b.ops) || b.ops.length > INBOX_OPS || !Array.isArray(b.files || []) || (b.files || []).length > INBOX_FILES) return null;
+  const ops = [];
+  for (const o of b.ops) {
+    if (!o || !TALLER_OPS.includes(o.s) || typeof o.k !== 'string' || !o.k || o.k.length > 120 || !Number.isInteger(o.q) || o.q < 1 || o.q > b.seq) return null;
+    if (o.v !== null && (typeof o.v !== 'object' || Array.isArray(o.v))) return null;
+    ops.push({ s: o.s, k: o.k, q: o.q, v: o.v, at: Number.isFinite(o.at) ? o.at : 0 });
+  }
+  const files = (b.files || []).filter((f) => f && typeof f === 'object' && FILE_ID_RE.test(String(f.id || ''))).map((f) => ({ id: f.id, owner: txt(f.owner, 160), name: txt(f.name, 160), type: txt(f.type, 80), kind: txt(f.kind, 20), size: Math.max(0, Number(f.size) || 0) }));
+  return { device: b.device, seq: b.seq, by: txt(b.by, 80), at: Date.now(), ops, files };
+}
 const dataReqs = new Map();
 const isDataPath = (p) => /^\/v1\/(datos|archivos)(\/|$)/.test(p);
 function dataRole(req, env) {
@@ -640,6 +665,7 @@ function dataRole(req, env) {
   if (!k) return { given: false, role: '' };
   if (sameKey(k, env.DATA_WRITE_KEY)) return { given: true, role: 'write' };
   if (sameKey(k, env.DATA_READ_KEY)) return { given: true, role: 'read' };
+  if (sameKey(k, env.DATA_TALLER_KEY)) return { given: true, role: 'taller' };
   return { given: true, role: '' };
 }
 function dataTooMany(ip, now = Date.now()) {
@@ -656,7 +682,7 @@ async function readBinary(req, max) {
 }
 async function dataRoute(req, env, ip, url) {
   const { given, role } = dataRole(req, env);
-  if (given && !role && (env.DATA_WRITE_KEY || env.DATA_READ_KEY)) {
+  if (given && !role && (env.DATA_WRITE_KEY || env.DATA_READ_KEY || env.DATA_TALLER_KEY)) {
     const lock = await registerFail(ip, env);
     if (lock) return limited(req, env, lock, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lock)}.`);
   } else if (role) await clearFails(ip, env);
@@ -665,8 +691,65 @@ async function dataRoute(req, env, ip, url) {
   if (!kv) return json(req, env, 503, { ok: false, error: 'Falta vincular el espacio KV «DATA» en el Worker (ver README → Información compartida).' });
   const p = url.pathname, m = req.method;
   const getMeta = async () => kv.get('snap:meta', 'json');
-  if (p === '/v1/datos/estado' && m === 'GET') return json(req, env, 200, { ok: true, role, published: await getMeta() });
+  if (p === '/v1/datos/estado' && m === 'GET') {
+    if (role === 'taller') return json(req, env, 200, { ok: true, role, published: await kv.get('snapt:meta', 'json') });
+    const out = { ok: true, role, published: await getMeta() };
+    if (role === 'write') out.taller = { enabled: !!env.DATA_TALLER_KEY, published: env.DATA_TALLER_KEY ? await kv.get('snapt:meta', 'json') : null, inbox: env.DATA_TALLER_KEY ? await kv.get('in:meta', 'json') : null };
+    return json(req, env, 200, out);
+  }
+  /* ===== Sección Taller ===== */
+  if (p === '/v1/datos/taller') {
+    if (m === 'GET') {
+      if (role !== 'taller' && role !== 'write') return json(req, env, 403, { ok: false, error: 'Esta clave no tiene acceso a la información de Taller.' });
+      const [value, meta] = await Promise.all([kv.get('snapt', 'arrayBuffer'), kv.get('snapt:meta', 'json')]);
+      if (!value || !meta) return json(req, env, 404, { ok: false, error: 'Todavía no se ha publicado la información de Taller.' });
+      return new Response(value, { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'X-PCS-Ver': meta.ver, 'X-PCS-Enc': meta.enc || 'json', 'X-Content-Type-Options': 'nosniff', ...corsHeaders(req, env) } });
+    }
+    if (m === 'PUT') {
+      if (role !== 'write') return json(req, env, 403, { ok: false, error: 'Solo el capturista publica la información de Taller.' });
+      if (!env.DATA_TALLER_KEY) return json(req, env, 409, { ok: false, error: 'La sección Taller no está activa (falta el secreto DATA_TALLER_KEY).' });
+      const ver = req.headers.get('X-PCS-Ver') || '';
+      if (!VER_RE.test(ver)) return json(req, env, 400, { ok: false, error: 'Versión inválida' });
+      const buf = await readBinary(req, DATA_MAX);
+      if (!buf) return json(req, env, 413, { ok: false, error: 'La información de Taller es demasiado grande.' });
+      const meta = { ver, at: Date.now(), size: buf.byteLength, enc: req.headers.get('X-PCS-Enc') === 'gzip' ? 'gzip' : 'json', files: Math.max(0, Math.floor(Number(req.headers.get('X-PCS-Files')) || 0)), by: txt(req.headers.get('X-PCS-By'), 240) };
+      await kv.put('snapt', buf);
+      await kv.put('snapt:meta', JSON.stringify(meta));
+      return json(req, env, 200, { ok: true, published: meta });
+    }
+  }
+  if (p === '/v1/datos/cambios') {
+    if (m === 'PUT') {
+      if (role !== 'taller') return json(req, env, 403, { ok: false, error: 'Solo un teléfono de Taller envía cambios por esta vía.' });
+      const buf = await readBinary(req, INBOX_MAX);
+      if (!buf) return json(req, env, 413, { ok: false, error: 'Demasiados cambios en un solo envío.' });
+      let body = null; try { body = JSON.parse(new TextDecoder().decode(buf)); } catch (e) { body = null; }
+      const batch = sanitizeInbox(body);
+      if (!batch) return json(req, env, 400, { ok: false, error: 'Cambios con un formato no válido.' });
+      await kv.put('in:' + batch.device, JSON.stringify(batch));
+      await kv.put('in:meta', JSON.stringify({ at: batch.at, device: batch.device, seq: batch.seq }));
+      return json(req, env, 200, { ok: true, at: batch.at, seq: batch.seq });
+    }
+    if (m === 'DELETE') {
+      if (role !== 'taller') return json(req, env, 403, { ok: false, error: 'Sin permiso.' });
+      const device = req.headers.get('X-PCS-Device') || '';
+      if (!VER_RE.test(device)) return json(req, env, 400, { ok: false, error: 'Dispositivo inválido' });
+      await kv.delete('in:' + device);
+      return json(req, env, 200, { ok: true });
+    }
+    if (m === 'GET') {
+      if (role !== 'write') return json(req, env, 403, { ok: false, error: 'Solo el capturista recibe los cambios de Taller.' });
+      const list = await kv.list({ prefix: 'in:' }), batches = [];
+      for (const k of list.keys || []) {
+        if (k.name === 'in:meta') continue;
+        const b = await kv.get(k.name, 'json');
+        if (b) batches.push(b);
+      }
+      return json(req, env, 200, { ok: true, batches });
+    }
+  }
   if (p === '/v1/datos' && m === 'GET') {
+    if (role === 'taller') return json(req, env, 403, { ok: false, error: TALLER_ONLY });
     const [value, meta] = await Promise.all([kv.get('snap', 'arrayBuffer'), getMeta()]);
     if (!value || !meta) return json(req, env, 404, { ok: false, error: 'Todavía no se ha publicado información.' });
     return new Response(value, { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'X-PCS-Ver': meta.ver, 'X-PCS-Enc': meta.enc || 'json', 'X-Content-Type-Options': 'nosniff', ...corsHeaders(req, env) } });
@@ -698,7 +781,11 @@ async function dataRoute(req, env, ip, url) {
       return new Response(value, { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment', 'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox", ...corsHeaders(req, env) } });
     }
-    if (role !== 'write') return json(req, env, 403, { ok: false, error: 'Este dispositivo es de consulta: solo el capturista publica la información.' });
+    if (role === 'taller' && m === 'PUT') {
+      /* Taller: solo archivos nuevos (fotos del taller); nunca reemplaza uno existente */
+      const prev = await kv.get('f:' + id, 'stream');
+      if (prev) { try { if (prev.cancel) await prev.cancel(); } catch (e) { /* */ } return json(req, env, 409, { ok: false, error: 'Ese archivo ya existe.' }); }
+    } else if (role !== 'write') return json(req, env, 403, { ok: false, error: role === 'taller' ? TALLER_ONLY : 'Este dispositivo es de consulta: solo el capturista publica la información.' });
     if (m === 'PUT') {
       const buf = await readBinary(req, DATA_MAX);
       if (!buf) return json(req, env, 413, { ok: false, error: 'El archivo es demasiado grande (máximo 24 MB).' });
@@ -1083,7 +1170,7 @@ export default {
           }
         } catch (e) { out.autenticacion = out.autenticacion || 'fallida'; out.error = e.message; }
         out.rastreoClientes = { kv: !!kvOf(env), portal: !!appUrl(env) };
-        out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY) };
+        out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY), taller: !!env.DATA_TALLER_KEY };
         out.avisos = { kv: !!alrKv(env) };
         out.enlaceCorto = { propio: shortBase(env) || false, tinyurl: !!env.TINYURL_TOKEN };
         /* Con la clave (?key=) se prueba el token contra TinyURL (solo lectura: lista de enlaces) */

@@ -183,6 +183,21 @@ async function nextFolio(eq, inAt) {
   return folioOf(code, day, n);
 }
 
+/* Información compartida: una orden que llega del teléfono de Taller con un folio que ya usa otra orden (ambos crearon una
+   orden del mismo equipo el mismo día antes de sincronizar) recibe el siguiente folio libre; el anterior queda anotado */
+export async function folioForIncoming(rec) {
+  const all = await db.all(ST.orders);
+  if (!rec.folio || !all.some((o) => o.id !== rec.id && o.folio === rec.folio && !o.deletedAt)) return rec;
+  const prev = all.find((o) => o.id === rec.id);
+  if (prev && prev.folio && prev.folio !== rec.folio) return { ...rec, folio: prev.folio };
+  const eq = equipmentOf(rec.equipmentType, rec.equipmentType === 'vehicle' ? rec.vehicleId : rec.trailerId);
+  if (!eq) return rec;
+  const folio = await nextFolio(eq, rec.inAt);
+  const ev = { id: db.uid('me_'), orderId: rec.id, at: Date.now(), by: actor(), type: 'folio', text: `Folio ${rec.folio} ya estaba en uso: la orden de Taller queda como ${folio}` };
+  await db.put(ST.events, ev);
+  return { ...rec, folio, folioFrom: rec.folio };
+}
+
 /* ===== Órdenes ===== */
 export async function createOrder(data) {
   await loadMaintenance();

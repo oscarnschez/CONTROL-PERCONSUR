@@ -7,7 +7,7 @@
  *   GET /__data → claves guardadas en el espacio DATA (información compartida) con su tamaño
  *   GET /__pushes → avisos push enviados (a los servicios de push simulados: no salen a internet)
  *   POST /__tick?now=ms → revisión de avisos como la del Cron Trigger (now opcional, para probar el resumen de las 8:00)
- * Claves de información compartida de prueba: capturista «datos-captura», consulta «datos-consulta».
+ * Claves de información compartida de prueba: capturista «datos-captura», consulta «datos-consulta», Taller «datos-taller».
  */
 import http from 'node:http';
 import { createHash } from 'node:crypto';
@@ -66,7 +66,7 @@ function mkKV() {
 }
 const KV = mkKV(), DATA = mkKV();
 const env = { IOP_APPID: APPID, IOP_SECRET: SECRET, PCS_KEY: 'clave-app', ALLOWED_ORIGIN: ORIGIN, IOP_BASE: `http://127.0.0.1:${iop.address().port}`, TRACKING: KV, APP_URL,
-  DATA, DATA_WRITE_KEY: 'datos-captura', DATA_READ_KEY: 'datos-consulta' };
+  DATA, DATA_WRITE_KEY: 'datos-captura', DATA_READ_KEY: 'datos-consulta', DATA_TALLER_KEY: 'datos-taller' };
 
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);

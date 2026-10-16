@@ -423,6 +423,49 @@ try {
   ok(codesD[codesD.length - 1] === 429, '5 claves de datos incorrectas → bloqueo (429)');
   r = await call('/salud', { e: envD, origin: null, key: null }); ok(r.body.informacionCompartida && r.body.informacionCompartida.kv === true && r.body.informacionCompartida.claves === true, '/salud indica si la información compartida está lista');
 
+  /* ===== Sección Taller (DATA_TALLER_KEY) ===== */
+  __reset();
+  const TK = 'clave-taller-777777', kvT2 = memKV(), envTL = { ...env, DATA: kvT2, DATA_WRITE_KEY: WK, DATA_READ_KEY: RK, DATA_TALLER_KEY: TK };
+  const tcall = (path, o = {}) => dcall(path, { e: envTL, ...o });
+  res = await tcall('/v1/datos/estado', { key: TK }); jb = await res.json();
+  ok(res.status === 200 && jb.role === 'taller' && jb.published === null, 'Taller: papel «taller» y sin información de Taller publicada');
+  res = await tcall('/v1/datos/estado', { key: WK }); jb = await res.json();
+  ok(jb.taller && jb.taller.enabled === true && jb.taller.inbox === null, 'capturista: la sección Taller está activa y sin cambios pendientes');
+  res = await dcall('/v1/datos/estado', { key: WK }); jb = await res.json();
+  ok(jb.taller && jb.taller.enabled === false, 'sin DATA_TALLER_KEY la sección Taller aparece desactivada');
+  res = await tcall('/v1/datos', { key: WK, method: 'PUT', body: snap1, headers: { 'X-PCS-Ver': 'm1', 'X-PCS-Device': 'devW', 'X-PCS-Enc': 'json' } });
+  res = await tcall('/v1/datos', { key: TK }); ok(res.status === 403, 'Taller NO puede descargar la información completa (viajes, cobros, operadores)');
+  res = await tcall('/v1/datos', { key: TK, method: 'PUT', body: snap1, headers: { 'X-PCS-Ver': 'm2', 'X-PCS-Device': 'devT' } }); ok(res.status === 403, 'Taller no publica la información completa');
+  res = await tcall('/v1/datos/taller', { key: TK }); ok(res.status === 404, 'Taller antes de que el capturista publique su parte → 404');
+  const snapT = new TextEncoder().encode(JSON.stringify({ app: 'perconsur', kind: 'taller', data: { maintenanceOrders: [] } }));
+  res = await tcall('/v1/datos/taller', { key: TK, method: 'PUT', body: snapT, headers: { 'X-PCS-Ver': 't1' } }); ok(res.status === 403, 'Taller no publica la foto de Taller (la publica el capturista)');
+  res = await dcall('/v1/datos/taller', { key: WK, method: 'PUT', body: snapT, headers: { 'X-PCS-Ver': 't1' } }); ok(res.status === 409, 'sin DATA_TALLER_KEY el capturista no gasta escrituras publicando la parte de Taller');
+  res = await tcall('/v1/datos/taller', { key: WK, method: 'PUT', body: snapT, headers: { 'X-PCS-Ver': 't1', 'X-PCS-Enc': 'json', 'X-PCS-Files': '3' } }); jb = await res.json();
+  ok(res.status === 200 && jb.published.ver === 't1' && jb.published.files === 3, 'el capturista publica la foto reducida de Taller');
+  res = await tcall('/v1/datos/taller', { key: TK });
+  ok(res.status === 200 && res.headers.get('X-PCS-Ver') === 't1' && new TextDecoder().decode(await res.arrayBuffer()).includes('"taller"'), 'Taller descarga su foto reducida');
+  res = await tcall('/v1/datos/taller', { key: RK }); ok(res.status === 403, 'la clave de consulta no abre la parte de Taller');
+  res = await tcall('/v1/datos/estado', { key: TK }); jb = await res.json(); ok(jb.published && jb.published.ver === 't1', 'Taller ve la versión de su foto');
+  /* Cambios del teléfono de Taller */
+  const batch = { device: 'devT', seq: 3, by: 'Taller', ops: [{ s: 'maintenanceOrders', k: 'mo_1', q: 2, v: { id: 'mo_1', folio: 'X' } }, { s: 'oilChanges', k: 'oc_1', q: 3, v: null }], files: [{ id: 'm_1', owner: 'mt:mo_1', size: 10 }] };
+  const sendB = (key, b) => tcall('/v1/datos/cambios', { key, method: 'PUT', body: JSON.stringify(b), headers: { 'Content-Type': 'application/json' } });
+  res = await sendB(WK, batch); ok(res.status === 403, 'el capturista no envía cambios por la vía de Taller');
+  res = await sendB(TK, { ...batch, ops: [{ s: 'operatorTrips', k: 't1', q: 1, v: { id: 't1', fare: 1 } }] }); ok(res.status === 400, 'Taller no puede enviar cambios de viajes u otras secciones (400)');
+  res = await sendB(TK, { ...batch, ops: [{ s: 'maintenanceOrders', k: 'mo_1', q: 9, v: {} }] }); ok(res.status === 400, 'cambio con número mayor que el lote → 400');
+  res = await sendB(TK, batch); jb = await res.json(); ok(res.status === 200 && jb.seq === 3, 'Taller envía sus cambios pendientes');
+  res = await tcall('/v1/datos/estado', { key: WK }); jb = await res.json(); ok(jb.taller.inbox && jb.taller.inbox.device === 'devT' && jb.taller.inbox.seq === 3, 'el capturista ve que hay cambios de Taller (sin listar el espacio)');
+  res = await tcall('/v1/datos/cambios', { key: TK }); ok(res.status === 403, 'Taller no lee los cambios de otros teléfonos');
+  res = await tcall('/v1/datos/cambios', { key: WK }); jb = await res.json();
+  ok(res.status === 200 && jb.batches.length === 1 && jb.batches[0].ops.length === 2 && jb.batches[0].ops[1].v === null && jb.batches[0].files[0].owner === 'mt:mo_1', 'el capturista recibe el lote (altas, cambios, bajas y fotos)');
+  res = await tcall('/v1/datos/cambios', { key: TK, method: 'DELETE', headers: { 'X-PCS-Device': 'devT' } }); jb = await (await tcall('/v1/datos/cambios', { key: WK })).json();
+  ok(res.status === 200 && jb.batches.length === 0, 'con todo aplicado, Taller retira su lote');
+  /* Archivos con la clave de Taller */
+  res = await tcall('/v1/archivos/m_foto1', { key: TK, method: 'PUT', body: pdf }); ok(res.status === 200, 'Taller sube una foto nueva');
+  res = await tcall('/v1/archivos/m_foto1', { key: TK, method: 'PUT', body: new Uint8Array([1]) }); ok(res.status === 409, 'Taller no reemplaza un archivo que ya existe');
+  res = await tcall('/v1/archivos/m_foto1', { key: TK, method: 'DELETE' }); ok(res.status === 403, 'Taller no borra archivos');
+  res = await tcall('/v1/archivos/m_foto1', { key: TK }); ok(res.status === 200, 'Taller descarga archivos');
+  r = await call('/salud', { e: envTL, origin: null, key: null }); ok(r.body.informacionCompartida.taller === true, '/salud indica si la sección Taller está activa');
+
   /* ===== Avisos: geocercas, vencimientos y notificaciones push ===== */
   ok(Math.abs(distanceM({ lat: 19, lng: -104 }, { lat: 20, lng: -104 }) - 111195) < 200 && distanceM({ lat: 19.05, lng: -104.31 }, { lat: 19.05, lng: -104.31 }) === 0, 'distancia: 1° de latitud ≈ 111 km');
   const cfgA = sanitizeAlertConfig({ tz: 'America/Mexico_City',

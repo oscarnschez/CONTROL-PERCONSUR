@@ -5,10 +5,11 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '5804f87167';
+const VERSION = '5238e74e24';
 const PRECACHE = [
   "./",
   "./index.html",
+  "./legal.html",
   "./manifest.json",
   "./src/auth/gate.js",
   "./src/config/auth.js",
@@ -61,6 +62,8 @@ const PRECACHE = [
   "./src/domain/units/exif.js",
   "./src/domain/units/policy.js",
   "./src/domain/units/units.js",
+  "./src/legal/page.js",
+  "./src/legal/texts.js",
   "./src/main.js",
   "./src/portal/main.js",
   "./src/services/access.js",
@@ -172,6 +175,7 @@ const PRECACHE = [
   "./styles/components.css",
   "./styles/desktop.css",
   "./styles/documents.css",
+  "./styles/legal.css",
   "./styles/logistics.css",
   "./styles/maps.css",
   "./styles/monitor.css",
@@ -309,7 +313,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const app = await caches.open(APP_CACHE);
     if (req.mode === 'navigate') {
-      const shell = await app.match('./index.html') || await app.match('./');
+      const shell = (url.pathname.endsWith('/legal.html') && await app.match('./legal.html')) || await app.match('./index.html') || await app.match('./');
       try { const r = await fetch(req); if (r.ok) return r; } catch (e) { /* sin conexión */ }
       return shell || new Response('Sin conexión', { status: 503 });
     }

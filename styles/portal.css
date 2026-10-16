@@ -88,6 +88,8 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 .pt-web a{color:var(--tint);font-weight:600;text-decoration:none}
 .pt-web a:hover{text-decoration:underline}
 .pt-legal{font-size:var(--fs-caption)}
+.pt-foot .pt-privacy{display:block;font-size:var(--fs-caption);line-height:1.45}
+.pt-privacy a{color:var(--tint);font-weight:600}
 @media (prefers-color-scheme:dark){.pt-word{color:#E8EBF2}}
 
 /* Computadora: la página usa todo el ancho de la ventana; el mapa ocupa todo el espacio libre (ancho y alto) y el estado,

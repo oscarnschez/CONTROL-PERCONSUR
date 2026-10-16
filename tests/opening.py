@@ -31,11 +31,12 @@ try:
     pg.goto(BASE, wait_until='commit'); pg.wait_for_selector('#splash .sp-mark'); pg.wait_for_timeout(450)
     st=pg.evaluate("""()=>{const s=document.getElementById('splash'), cs=getComputedStyle(s);
       return {role:s.getAttribute('role'), label:s.getAttribute('aria-label'), word:s.querySelector('.sp-word').textContent, legal:s.querySelector('.sp-legal').textContent,
-        mark:s.querySelector('.sp-mark').complete, line:s.querySelectorAll('.sp-line i').length, lineHidden:s.querySelector('.sp-line').getAttribute('aria-hidden'), doors:s.querySelectorAll('.sp-door').length,
+        mark:s.querySelector('svg.sp-mark .cm-a2')!==null&&s.querySelector('.sp-mark img')===null, sub:s.querySelector('.sp-sub').textContent, dot:getComputedStyle(s.querySelector('.sp-mark .cm-dot')).animationName, a2:getComputedStyle(s.querySelector('.sp-mark .cm-a2')).animationName, line:s.querySelectorAll('.sp-line i').length, lineHidden:s.querySelector('.sp-line').getAttribute('aria-hidden'), doors:s.querySelectorAll('.sp-door').length,
         exit:s.classList.contains('sp-exit'), warm:document.documentElement.classList.contains('sp-warm'), bg:cs.backgroundColor,
         anim:getComputedStyle(s.querySelector('.sp-word')).animationName, load:getComputedStyle(s.querySelector('.sp-line i')).animationName}}""")
-    ok(st['word']=='PERCONSUR' and st['legal']=='PERCONSUR DE NAYARIT GROUP' and st['mark'] and st['line']==1 and st['lineHidden']=='true' and st['doors']==0,'apertura sobria: logotipo, PERCONSUR, línea de carga (decorativa para el lector de pantalla) y razón social al pie')
-    ok(st['role']=='status' and st['label']=='Abriendo PERCONSUR' and not st['exit'] and not st['warm'] and st['anim']=='spRise' and st['load']=='spLoad','mientras carga: el logotipo y el nombre aparecen con un desvanecido breve y la línea avanza')
+    ok(st['word']=='CONTROL' and st['sub']=='PERCONSUR' and st['legal']=='PERCONSUR DE NAYARIT GROUP' and st['mark'] and st['line']==1 and st['lineHidden']=='true' and st['doors']==0,'apertura sobria: símbolo de CONTROL PERCONSUR (vector), CONTROL / PERCONSUR, línea de carga (decorativa para el lector de pantalla) y razón social al pie')
+    ok(st['dot']=='cmDot' and st['a2']=='cmArc' and st['label']=='Abriendo CONTROL PERCONSUR','apertura: el punto aparece y los arcos se emiten desde él (señal)')
+    ok(st['role']=='status' and st['label']=='Abriendo CONTROL PERCONSUR' and not st['exit'] and not st['warm'] and st['anim']=='spRise' and st['load']=='spLoad','mientras carga: el símbolo se emite, el nombre aparece con un desvanecido breve y la línea avanza')
     ok(st['bg']=='rgb(244, 245, 248)','el fondo es el de la app y opaco hasta la salida: el acceso no se asoma'); shot(pg,'01_cargando')
     hrefs=pg.evaluate("()=>[...document.querySelectorAll('link[rel=icon]')].map(l=>l.getAttribute('href'))")
     ico=pg.request.get(BASE.replace('index.html','assets/icons/favicon.ico')); body=ico.body()

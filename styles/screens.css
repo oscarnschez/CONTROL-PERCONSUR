@@ -254,34 +254,39 @@ html.kb-open .actionbar{display:none}
 .shake{animation:shake .38s ease}
 @keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
 
-/* ===== Transición de marca al iniciar sesión (ui/components/brandIntro.js) =====
-   Entrada: el logotipo se revela en diagonal (máscara que sigue el trazo naranja), luego el nombre, la banda corrugada y
-   «Bienvenido», al compás del sonido de entrada (assets/sounds/intro.mp3, ver brandIntro.js). Salida: el fondo se desvanece sobre el panel y el logotipo viaja a su lugar en el encabezado. */
+/* Transición de marca al iniciar sesión (ui/components/brandIntro.js): CONTROL PERCONSUR, al compás del sonido de entrada.
+   El símbolo se emite como una señal: el punto aparece con el golpe, los arcos crecen desde él y llegan juntos al punto
+   más alto del sonido (0.7 s); salen dos ondas, entran «CONTROL», «PERCONSUR» y «Bienvenido», y durante la nota
+   sostenida la señal recorre el símbolo. Salida: la marca se aleja un poco y se desvanece sobre el panel.
+   Solo transform y opacity. El símbolo (.cm) se comparte con la pantalla de carga (styles/base.css). */
 .brand-intro{position:fixed;inset:0;z-index:var(--z-intro);display:grid;place-items:center;overflow:hidden}
-.bi-bg{position:absolute;inset:0;background:var(--canvas);transition:opacity .44s ease .06s}
-.bi-in{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px;text-align:center}
-.bi-logo{width:96px;height:96px;transform-origin:0 0;transition:transform .52s var(--ease),opacity .4s ease}
-.bi-mark{display:block;width:100%;height:100%;object-fit:contain;animation:biMark .7s var(--ease) both;
-  -webkit-mask-image:linear-gradient(135deg,#000 45%,transparent 55%);mask-image:linear-gradient(135deg,#000 45%,transparent 55%);
-  -webkit-mask-size:300% 300%;mask-size:300% 300%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:0 0;mask-position:0 0}
-.bi-word{font-size:36px;animation:biWord .5s var(--ease) .62s both}
-.bi-band{width:168px;transform-origin:left center;animation:biBand .46s var(--ease) 1s both}
-.bi-msg{margin:4px 0 0;font-size:var(--fs-subhead);color:var(--ink-2);animation:biFade .4s ease 1.35s both}
-@keyframes biMark{from{opacity:0;transform:translate(-8px,8px) scale(.94);-webkit-mask-position:100% 100%;mask-position:100% 100%}30%{opacity:1}to{opacity:1;transform:none;-webkit-mask-position:0 0;mask-position:0 0}}
-@keyframes biWord{from{opacity:0;transform:translateY(8px);letter-spacing:.16em}to{opacity:1;transform:none;letter-spacing:.02em}}
-@keyframes biBand{from{transform:scaleX(0)}to{transform:none}}
-@keyframes biFade{from{opacity:0}to{opacity:1}}
-@media (min-width:700px){.bi-logo{width:120px;height:120px}.bi-word{font-size:42px}.bi-band{width:200px}}
+.bi-bg{position:absolute;inset:0;background:var(--canvas);transition:opacity .4s ease}
+.bi-in{position:relative;display:flex;flex-direction:column;align-items:center;padding:24px;text-align:center;transition:opacity .3s ease,transform .44s cubic-bezier(.4,0,.2,1)}
+.bi-logo{width:112px;height:112px;margin-bottom:24px}
+.bi-mark .cm-dot{animation:cmDot .42s cubic-bezier(.34,1.56,.64,1) both,cmPing .46s ease 1.2s}
+.bi-mark .cm-a1{animation:cmArc .5s cubic-bezier(.2,.8,.2,1) .14s both,cmPing .46s ease 1.32s}
+.bi-mark .cm-a2{animation:cmArc .56s cubic-bezier(.2,.8,.2,1) .3s both,cmPing .46s ease 1.44s}
+.bi-mark .cm-wave{stroke-width:2.5px;opacity:0}
+.bi-mark .cm-wave.w1{animation:cmWave 1.1s cubic-bezier(.2,.6,.3,1) .7s both}
+.bi-mark .cm-wave.w2{animation:cmWave 1.1s cubic-bezier(.2,.6,.3,1) .95s both}
+.bi-word{font:800 34px/1 var(--font);letter-spacing:.08em;padding-left:.08em;color:var(--cm-ink);animation:biRise .55s cubic-bezier(.2,.8,.2,1) .62s both}
+.bi-sub{margin-top:12px;font:500 13px/1 var(--font);letter-spacing:.52em;padding-left:.52em;color:var(--cm-ink);animation:biSub .6s ease .95s both}
+.bi-msg{margin:24px 0 0;font-size:var(--fs-subhead);color:var(--ink-2);animation:biFade .4s ease 1.35s both}
+@keyframes cmWave{0%{opacity:0;transform:scale(1)}15%{opacity:.5}100%{opacity:0;transform:scale(10)}}
+@keyframes cmPing{50%{opacity:.4}}
+@keyframes biRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes biSub{from{opacity:0;transform:translateY(4px)}to{opacity:.82;transform:none}}
+@keyframes biFade{from{opacity:0}}
+@media (min-width:700px){.bi-logo{width:136px;height:136px}.bi-word{font-size:42px}.bi-sub{font-size:15px}}
 .brand-intro.bi-out{pointer-events:none}
-.brand-intro.bi-out .bi-bg{opacity:0}
-.brand-intro.bi-out .bi-word,.brand-intro.bi-out .bi-band,.brand-intro.bi-out .bi-msg{opacity:0;transition:opacity .18s ease;animation:none}
-.bi-logo.fade{opacity:0;transform:scale(.92)}
-.bi-hidden{visibility:hidden}
-/* Reducir movimiento: sin revelado ni desplazamientos; la marca aparece quieta y solo se desvanece */
-.bi-still .bi-mark,.bi-still .bi-word,.bi-still .bi-band,.bi-still .bi-msg{animation:none;-webkit-mask-image:none;mask-image:none}
-.bi-still .bi-in{transition:opacity .24s ease}
-.bi-still.bi-out .bi-in{opacity:0}
-@media (prefers-reduced-motion:reduce){.brand-intro .bi-bg,.brand-intro .bi-in,.brand-intro .bi-logo{transition-duration:.24s!important;transition-delay:0s!important}}
+.brand-intro.bi-out .bi-bg{opacity:0;transition-delay:.06s}
+.brand-intro.bi-out .bi-in{opacity:0;transform:scale(1.06)}
+/* Reducir movimiento: sin emisión ni desplazamientos; la marca aparece quieta y solo se desvanece */
+.bi-still .cm *,.bi-still .bi-word,.bi-still .bi-sub,.bi-still .bi-msg{animation:none}
+.bi-still .bi-sub{opacity:.82}
+.bi-still .cm-waves{display:none}
+.bi-still.bi-out .bi-in{transform:none}
+@media (prefers-reduced-motion:reduce){.brand-intro .bi-bg,.brand-intro .bi-in{transition-duration:.24s!important;transition-delay:0s!important}}
 
 /* ===== Información compartida (Ajustes → Información compartida) ===== */
 .sync-role{display:flex;align-items:center;gap:8px;margin:0 0 8px}

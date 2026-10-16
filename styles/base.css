@@ -21,20 +21,33 @@ html.sheet-open,html.sheet-open body,html.is-busy body{overflow:hidden}
   background:repeating-linear-gradient(90deg,var(--blue) 0 9px,var(--blue-d) 9px 12px,var(--blue-m) 12px 14px)}
 .band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:22%;background:repeating-linear-gradient(90deg,var(--brand-orange) 0 9px,var(--brand-orange-d) 9px 12px,var(--brand-orange-m) 12px 14px)}
 .band.slim{height:4px;width:96px;margin:18px auto 0}
+/* Símbolo de CONTROL PERCONSUR (ui/components/controlMark.js; también en línea en index.html): el punto, el arco
+   interior y el exterior se animan por separado desde el centro del punto */
+:root{--cm-ink:#0F0147}
+:root[data-theme="dark"]{--cm-ink:#E8EBF2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--cm-ink:#E8EBF2}}
+.cm{display:block;width:100%;height:100%;overflow:visible}
+.cm-dot,.cm-a1,.cm-a2,.cm-wave{transform-box:fill-box}
+.cm-dot{transform-origin:50% 50%}
+.cm-a1,.cm-a2,.cm-wave{transform-origin:0 100%}
 
-/* Pantalla de carga = apertura de la app (ui/components/opening.js). Sobria: sobre el fondo de la app aparecen el
-   logotipo y el nombre con un desvanecido breve y una línea fina indica la carga; la razón social va al pie. Cuando la
+/* Pantalla de carga = apertura de la app (ui/components/opening.js). Sobria: sobre el fondo de la app el símbolo de
+   CONTROL PERCONSUR se emite como una señal (punto y arcos) y aparece el nombre y una línea fina indica la carga; la razón social va al pie. Cuando la
    app está lista (.sp-exit) la línea se completa y la pantalla se desvanece. Las animaciones de entrada usan fill
    «backwards»: al terminar no retienen valores y la salida usa transiciones. Al recargar en la misma sesión
    (html.sp-warm) no hay entrada: solo se desvanece (.out). */
 #splash{position:fixed;inset:0;z-index:var(--z-splash);background:var(--canvas);display:grid;place-items:center;transition:opacity .28s ease}
 #splash.out{opacity:0;pointer-events:none}
 .sp-inner{display:flex;flex-direction:column;align-items:center;padding:24px;text-align:center;transition:opacity .2s ease .14s,transform .34s var(--ease) .08s}
-.sp-mark{width:72px;height:72px;object-fit:contain;animation:spRise .5s var(--ease) .04s backwards}
-.sp-word{font-size:28px;margin-top:14px;animation:spRise .5s var(--ease) .14s backwards}
-.sp-line{width:112px;height:2px;margin-top:22px;border-radius:1px;background:var(--line-2);overflow:hidden;animation:spFade .35s ease .26s backwards}
+.sp-mark{width:76px;height:76px}
+.sp-mark .cm-dot{animation:cmDot .36s cubic-bezier(.34,1.56,.64,1) .04s backwards}
+.sp-mark .cm-a1{animation:cmArc .44s cubic-bezier(.2,.8,.2,1) .14s backwards}
+.sp-mark .cm-a2{animation:cmArc .48s cubic-bezier(.2,.8,.2,1) .26s backwards}
+.sp-word{margin-top:20px;font:800 26px/1 var(--font);letter-spacing:.08em;padding-left:.08em;color:var(--cm-ink);animation:spRise .5s var(--ease) .36s backwards}
+.sp-sub{margin-top:9px;font:500 11px/1 var(--font);letter-spacing:.5em;padding-left:.5em;color:var(--cm-ink);opacity:.82;animation:spFade .5s ease .46s backwards}
+.sp-line{width:112px;height:2px;margin-top:22px;border-radius:1px;background:var(--line-2);overflow:hidden;animation:spFade .35s ease .5s backwards}
 .sp-line i{display:block;height:100%;background:var(--tint);transform-origin:left center;transform:scaleX(.82);
-  animation:spLoad .62s cubic-bezier(.3,.6,.2,1) .26s backwards;transition:transform .22s ease}
+  animation:spLoad .5s cubic-bezier(.3,.6,.2,1) .5s backwards;transition:transform .22s ease}
 .sp-legal{position:absolute;left:0;right:0;bottom:calc(var(--sab) + 28px);text-align:center;font-size:11px;font-weight:600;letter-spacing:.2em;padding-left:.2em;color:var(--muted);animation:spFade .5s ease .32s backwards;transition:opacity .2s ease .14s}
 .sp-msg{max-width:300px;color:var(--ink-2);font-size:var(--fs-subhead);margin:16px 0 0}
 .sp-msg:empty{display:none}
@@ -42,6 +55,8 @@ html.sheet-open,html.sheet-open body,html.is-busy body{overflow:hidden}
 @keyframes spRise{from{opacity:0;transform:translateY(6px)}}
 @keyframes spFade{from{opacity:0}}
 @keyframes spLoad{from{transform:scaleX(0)}}
+@keyframes cmDot{from{opacity:0;transform:scale(0)}to{opacity:1;transform:none}}
+@keyframes cmArc{from{opacity:0;transform:scale(.55)}60%{opacity:1}to{opacity:1;transform:none}}
 /* Salida escalonada (sin bloquear los toques): la línea se completa, el contenido se retira con un leve alejamiento y
    después se desvanece el fondo; así el logotipo no queda encimado sobre la pantalla que aparece */
 #splash.sp-exit{opacity:0;pointer-events:none;transition:opacity .28s ease .26s}
@@ -49,7 +64,7 @@ html.sheet-open,html.sheet-open body,html.is-busy body{overflow:hidden}
 #splash.sp-exit .sp-inner{opacity:0;transform:scale(.985)}
 #splash.sp-exit .sp-legal{opacity:0}
 /* Al recargar en la misma sesión: sin entrada */
-.sp-warm #splash .sp-mark,.sp-warm #splash .sp-word,.sp-warm #splash .sp-line,.sp-warm #splash .sp-line i,.sp-warm #splash .sp-legal{animation:none}
+.sp-warm #splash .cm *,.sp-warm #splash .sp-word,.sp-warm #splash .sp-sub,.sp-warm #splash .sp-line,.sp-warm #splash .sp-line i,.sp-warm #splash .sp-legal{animation:none}
 
 /* Transiciones de pantalla */
 /* Solo se anima el contenido (nunca el contenedor de las barras fijas) y sin dejar el transform aplicado:

@@ -1,49 +1,38 @@
 /*
  * Transición de marca al iniciar sesión (la abre auth/gate.js solo después de verificar las credenciales; nunca al
- * recargar ni al navegar dentro de la app).
- *   Entrada   el logotipo se revela en diagonal siguiendo su trazo naranja, aparece el nombre, se dibuja la banda
- *             corrugada y, al final, un «Bienvenido» discreto.
- *   Presencia la marca queda un instante; mientras tanto la app arranca por debajo.
- *   Salida    cuando el panel ya está en pantalla, el logotipo viaja a su lugar en el encabezado de Inicio (o al menú
- *             lateral en computadora) y el fondo se desvanece sobre el panel. Si no hay encabezado a la vista, solo se
- *             desvanece.
- * Sonido: suena intro.mp3 (services/sounds.js) y la animación va a su compás: golpe inicial (0 s) → el logotipo se
- * revela hasta el punto más alto (0.7 s), entra el nombre; durante la nota sostenida se dibuja la banda (1 s) y aparece
- * «Bienvenido» (1.35 s); cuando el sonido empieza a apagarse (1.95 s) la marca viaja al encabezado y termina con él (~2.5 s).
- * Dura cerca de 2.5 s; con «reducir movimiento» no hay desplazamientos: la marca se muestra quieta y se desvanece (~1 s).
- * Usa CSS (styles/screens.css), la imagen del logotipo (ya cargada por la pantalla de acceso) y el sonido de entrada.
+ * recargar ni al navegar dentro de la app). Marca: CONTROL PERCONSUR (símbolo de señal, ui/components/controlMark.js).
+ * Va al compás del sonido de entrada (assets/sounds/intro.mp3, services/sounds.js): golpe a 0 s, punto más alto a 0.7 s,
+ * nota sostenida hasta ~1.9 s y se apaga a ~2.7 s.
+ *   0 s       el punto aparece con el golpe (como un equipo que se enciende)
+ *   0.14 s    el arco interior y luego el exterior se emiten desde el punto y llegan juntos al punto más alto (0.7 s)
+ *   0.7 s     dos ondas de señal salen del punto y se desvanecen; entra «CONTROL»
+ *   0.95 s    «PERCONSUR» con letras espaciadas; 1.35 s «Bienvenido»
+ *   1.2 s     durante la nota sostenida la señal recorre el símbolo (punto → arco → arco) una vez
+ *   1.95 s    cuando el sonido empieza a apagarse, la marca se aleja un poco y se desvanece sobre el panel (~2.4 s)
+ * Solo transform y opacity (sin saltos de diseño). Con «reducir movimiento» no hay desplazamientos: la marca se muestra
+ * quieta y se desvanece (~1 s). CSS en styles/screens.css.
  */
 import { play } from '../../services/sounds.js';
+import { controlMark } from './controlMark.js';
 
-const MARK = './assets/brand/perconsur-mark.png';
 const HOLD = 1950;        /* ms desde que aparece hasta que puede salir: cuando el sonido de entrada empieza a apagarse */
 const HOLD_STILL = 700;   /* con «reducir movimiento» */
-const SETTLE = 240;       /* la primera pantalla termina su animación de entrada antes de medir el encabezado */
+const SETTLE = 240;       /* la primera pantalla termina su animación de entrada antes de salir */
+const OUT = 440;          /* salida: la marca se aleja y el fondo se desvanece */
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-
-/* Logotipo del encabezado al que viaja la marca: el de Inicio o el del menú lateral, el que esté a la vista */
-function headerMark() {
-  for (const q of ['.home-top .brand-mark', '.tb-brand img']) {
-    const el = document.querySelector(q);
-    if (!el) continue;
-    const r = el.getBoundingClientRect();
-    if (r.width > 8 && r.height > 8 && r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth && getComputedStyle(el).visibility !== 'hidden') return { el, r };
-  }
-  return null;
-}
 
 export function startBrandIntro() {
   const still = reducedMotion();
   const root = document.createElement('div');
   root.className = 'brand-intro' + (still ? ' bi-still' : '');
   root.setAttribute('role', 'status');
-  root.setAttribute('aria-label', 'Bienvenido a PERCONSUR');
+  root.setAttribute('aria-label', 'Bienvenido a CONTROL PERCONSUR');
   root.innerHTML = `<div class="bi-bg"></div>
     <div class="bi-in">
-      <div class="bi-logo"><img src="${MARK}" alt="" class="bi-mark" decoding="sync"></div>
-      <span class="wordmark bi-word">PERCONSUR</span>
-      <div class="band bi-band" aria-hidden="true"></div>
+      <div class="bi-logo">${controlMark('bi-mark', { withWaves: true })}</div>
+      <span class="bi-word">CONTROL</span>
+      <span class="bi-sub">PERCONSUR</span>
       <p class="bi-msg">Bienvenido</p>
     </div>`;
   document.body.appendChild(root);
@@ -64,21 +53,8 @@ export function startBrandIntro() {
       /* El tiempo mínimo se cuenta desde que apareció la marca (la carga de la app corre en paralelo) */
       await Promise.all([wait((still ? HOLD_STILL : HOLD) - (performance.now() - t0)), Promise.resolve(appShown).then(() => wait(SETTLE))]);
       if (done) return;
-      const logo = root.querySelector('.bi-logo');
-      const target = still ? null : headerMark();
       root.classList.add('bi-out');
-      if (target) {
-        /* Del centro de la pantalla al encabezado: misma imagen, se oculta la del encabezado hasta que llega */
-        const a = logo.getBoundingClientRect(), b = target.r;
-        target.el.classList.add('bi-hidden');
-        logo.classList.add('glide');
-        logo.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.width / a.width})`;
-        await Promise.race([new Promise((r) => logo.addEventListener('transitionend', r, { once: true })), wait(640)]);
-        target.el.classList.remove('bi-hidden');
-      } else {
-        logo.classList.add('fade');
-        await wait(still ? 260 : 440);
-      }
+      await wait(still ? 260 : OUT);
       finish();
     },
     /* La app no pudo arrancar: se retira de inmediato */

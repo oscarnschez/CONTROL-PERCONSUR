@@ -1,6 +1,6 @@
 """Información legal de punta a punta (no requiere credenciales): legal.html con sus tres pestañas (Aviso de privacidad,
 Condiciones de uso, Cookies) sin iniciar sesión y sin cargar la app, enlaces desde el acceso y desde Ajustes, sin
-cookies, sin desplazamiento horizontal en iPhone, modo oscuro, computadora y regreso a la app."""
+cookies, sin desplazamiento horizontal en iPhone, modo oscuro, computadora y regreso a la app (no desde el portal de clientes)."""
 import subprocess, time, sys, os
 from playwright.sync_api import sync_playwright
 HERE=os.path.dirname(os.path.abspath(__file__)); APP=os.path.abspath(os.path.join(HERE,'..')); SH='shots'; os.makedirs(SH,exist_ok=True)
@@ -55,6 +55,11 @@ try:
     lp.click('.lg-foot a'); lp.wait_for_selector('.home, .login',timeout=15000)
     ok(lp.locator('.home').count()==1,'«Ir a la aplicación» vuelve a la app')
     lp.close(); c.close()
+    # Desde el portal de clientes: sin «Ir a la aplicación» (también al cambiar de pestaña)
+    c=ctx_of(b); pg=page(c); pg.goto(ROOT+'legal.html?portal#privacidad'); pg.wait_for_selector('.lg-doc h1')
+    ok(pg.locator('h1').inner_text()=='Aviso de privacidad integral' and pg.locator('.lg-foot a').count()==0 and 'Ir a la aplicación' not in pg.locator('body').inner_text() and pg.locator('.lg-foot small').count()==1,'desde el portal de clientes: sin «Ir a la aplicación» (queda el aviso de derechos)')
+    pg.click('.lg-tabs a[href="#condiciones"]'); pg.wait_for_selector('.lg-doc h1:text("Condiciones de uso")')
+    ok(pg.locator('.lg-foot a').count()==0,'desde el portal: al cambiar de pestaña sigue sin «Ir a la aplicación»'); c.close()
     # Modo oscuro y computadora
     c=ctx_of(b,color_scheme='dark'); pg=page(c); pg.goto(ROOT+'legal.html#condiciones'); pg.wait_for_selector('.lg-doc h1')
     bg=pg.evaluate("getComputedStyle(document.body).backgroundColor"); ink=pg.evaluate("getComputedStyle(document.querySelector('.lg-sec p, .lg-sec li')).color")
